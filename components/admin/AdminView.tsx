@@ -668,7 +668,7 @@ const AdminView: React.FC<AdminViewProps> = ({
             </div>
           </div>
           
-          {((activeTab === 'compare' ? compareSelectedTeams.length > 0 : selectedTeams.length > 0) && activeTab !== 'game') && (
+          {((activeTab === 'investigation' && selectedTeams.length > 0) || (activeTab === 'compare' && compareSubTab === 'performance' && compareSelectedTeams.length > 0)) && (
             <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 p-1 rounded-xl">
               <span className="px-2 text-[10px] font-black uppercase tracking-widest text-slate-500">{t.graphTable}</span>
               <div className="flex bg-slate-800 p-1 rounded-lg">
@@ -1314,49 +1314,80 @@ const AdminView: React.FC<AdminViewProps> = ({
                       </table>
                     </div>
                     ) : (
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        {[
-                          { key: 'shooting', label: t.shootingCapabilitiesPct, unit: '%' },
-                          { key: 'collection', label: t.collectionCapabilitiesPct, unit: '%' },
-                          { key: 'scoring', label: t.scoring, unit: '' },
-                          { key: 'fouls', label: t.fouls, unit: '' },
-                          { key: 'behavior', label: t.behavior, unit: '%' },
-                          { key: 'autonomous', label: t.autonomous, unit: '' }
-                        ].map(metric => (
-                          <div key={metric.key} className="bg-slate-50 border-2 border-slate-200 rounded-[2rem] p-6 shadow-sm overflow-hidden">
-                            <h3 className="font-black text-slate-900 uppercase tracking-widest text-xs mb-6 flex items-center gap-2">
-                              <div className="w-1.5 h-6 bg-indigo-500 rounded-full" />
-                              {metric.label}
-                            </h3>
-                            <div className="h-[250px] w-full">
-                              <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={performanceComparisonData} layout="vertical" margin={{ left: 20, right: 30, top: 0, bottom: 0 }}>
-                                  <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
-                                  <XAxis type="number" hide />
-                                  <YAxis 
-                                    dataKey="team" 
-                                    type="category" 
-                                    stroke="#64748b" 
-                                    fontSize={12} 
-                                    fontWeight="bold" 
-                                    width={60}
-                                  />
-                                  <Tooltip 
-                                    cursor={{ fill: 'transparent' }}
-                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                                    formatter={(value) => [`${value}${metric.unit}`, metric.label]}
-                                  />
-                                  <Bar dataKey={metric.key} radius={[0, 8, 8, 0]} barSize={24}>
-                                    {performanceComparisonData.map((entry, index) => (
-                                      <Cell key={`cell-${index}`} fill={entry.color} />
-                                    ))}
-                                  </Bar>
-                                </BarChart>
-                              </ResponsiveContainer>
+                      viewMode === 'graph' ? (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                          {[
+                            { key: 'shooting', label: t.shootingCapabilitiesPct, unit: '%' },
+                            { key: 'collection', label: t.collectionCapabilitiesPct, unit: '%' },
+                            { key: 'scoring', label: t.scoring, unit: '' },
+                            { key: 'fouls', label: t.fouls, unit: '' },
+                            { key: 'behavior', label: t.behavior, unit: '%' },
+                            { key: 'autonomous', label: t.autonomous, unit: '' }
+                          ].map(metric => (
+                            <div key={metric.key} className="bg-slate-50 border-2 border-slate-200 rounded-[2rem] p-6 shadow-sm overflow-hidden">
+                              <h3 className="font-black text-slate-900 uppercase tracking-widest text-xs mb-6 flex items-center gap-2">
+                                <div className="w-1.5 h-6 bg-indigo-500 rounded-full" />
+                                {metric.label}
+                              </h3>
+                              <div className="h-[250px] w-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                  <BarChart data={performanceComparisonData} layout="vertical" margin={{ left: 20, right: 30, top: 0, bottom: 0 }}>
+                                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
+                                    <XAxis type="number" hide />
+                                    <YAxis 
+                                      dataKey="team" 
+                                      type="category" 
+                                      stroke="#64748b" 
+                                      fontSize={12} 
+                                      fontWeight="bold" 
+                                      width={60}
+                                    />
+                                    <Tooltip 
+                                      cursor={{ fill: 'transparent' }}
+                                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                                      formatter={(value) => [`${value}${metric.unit}`, metric.label]}
+                                    />
+                                    <Bar dataKey={metric.key} radius={[0, 8, 8, 0]} barSize={24}>
+                                      {performanceComparisonData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.color} />
+                                      ))}
+                                    </Bar>
+                                  </BarChart>
+                                </ResponsiveContainer>
+                              </div>
                             </div>
-                          </div>
-                        ))}
-                      </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto border-2 border-slate-100 rounded-2xl">
+                          <table className="w-full text-start border-collapse" dir={isRTL ? 'rtl' : 'ltr'}>
+                            <thead>
+                              <tr className="bg-indigo-900 text-white">
+                                <th className="py-4 px-6 text-xs font-black uppercase tracking-widest text-start border-r border-indigo-800">{t.teamNumber}</th>
+                                <th className="py-4 px-6 text-xs font-black uppercase tracking-widest text-start border-r border-indigo-800">{t.shootingCapabilitiesPct}</th>
+                                <th className="py-4 px-6 text-xs font-black uppercase tracking-widest text-start border-r border-indigo-800">{t.collectionCapabilitiesPct}</th>
+                                <th className="py-4 px-6 text-xs font-black uppercase tracking-widest text-start border-r border-indigo-800">{t.scoring}</th>
+                                <th className="py-4 px-6 text-xs font-black uppercase tracking-widest text-start border-r border-indigo-800">{t.fouls}</th>
+                                <th className="py-4 px-6 text-xs font-black uppercase tracking-widest text-start border-r border-indigo-800">{t.behavior}</th>
+                                <th className="py-4 px-6 text-xs font-black uppercase tracking-widest text-start">{t.autonomous}</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {performanceComparisonData.map(team => (
+                                <tr key={team.team} className="border-b border-slate-200 hover:bg-slate-50 transition-colors">
+                                  <td className="py-4 px-6 font-black text-slate-900 border-r border-slate-200">{team.team}</td>
+                                  <td className="py-4 px-6 font-bold text-slate-700 border-r border-slate-200">{team.shooting}%</td>
+                                  <td className="py-4 px-6 font-bold text-slate-700 border-r border-slate-200">{team.collection}%</td>
+                                  <td className="py-4 px-6 font-bold text-slate-700 border-r border-slate-200">{team.scoring}</td>
+                                  <td className="py-4 px-6 font-bold text-slate-700 border-r border-slate-200">{team.fouls}</td>
+                                  <td className="py-4 px-6 font-bold text-slate-700 border-r border-slate-200">{team.behavior}%</td>
+                                  <td className="py-4 px-6 font-bold text-slate-700">{team.autonomous}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )
                     )
                   ) : (
                     <div className="flex-1 flex flex-col items-center justify-center text-slate-400 space-y-4 py-20">
@@ -1496,15 +1527,15 @@ const AdminView: React.FC<AdminViewProps> = ({
                         return (
                           <>
                             {/* Table */}
-                            <div className="w-full overflow-x-auto border-4 border-black rounded-2xl">
-                              <table className="w-full border-collapse bg-white text-black font-bold" dir={isRTL ? 'rtl' : 'ltr'}>
+                            <div className="w-full overflow-x-auto border-2 border-black rounded-2xl">
+                              <table className="w-full border-collapse bg-white text-black font-bold text-sm" dir={isRTL ? 'rtl' : 'ltr'}>
                                 <thead>
-                                  <tr className="border-b-4 border-black">
-                                    <th className="p-3 bg-[#f3e8ff] border-e-4 border-black w-48 text-lg text-start">Heat Number</th>
-                                    <th colSpan={Math.max(1, sortedMatchRows.length)} className="p-3 text-center text-2xl font-black">{t.match} {gameViewMatch}</th>
+                                  <tr className="border-b-2 border-black">
+                                    <th className="p-2 bg-[#f3e8ff] border-e-2 border-black w-40 text-xs text-start">Heat Number</th>
+                                    <th colSpan={Math.max(1, sortedMatchRows.length)} className="p-2 text-center text-lg font-black">{t.match} {gameViewMatch}</th>
                                   </tr>
-                                  <tr className="border-b-4 border-black">
-                                    <th className="p-3 bg-[#f3e8ff] border-e-4 border-black text-lg text-start">Team</th>
+                                  <tr className="border-b-2 border-black">
+                                    <th className="p-2 bg-[#f3e8ff] border-e-2 border-black text-xs text-start">Team</th>
                                     {sortedMatchRows.map((row, i) => {
                                       const alliance = row.allianceColor || 'Red';
                                       const color = alliance === 'Red' ? 'text-red-600' : 'text-blue-600';
@@ -1512,10 +1543,10 @@ const AdminView: React.FC<AdminViewProps> = ({
                                       const teamNum = row.teamScouted || '---';
                                       
                                       return (
-                                        <th key={i} className={`p-3 text-center border-e-4 border-black last:border-e-0 text-xl font-black ${color} ${bgColor}`}>
+                                        <th key={i} className={`p-2 text-center border-e-2 border-black last:border-e-0 text-base font-black ${color} ${bgColor}`}>
                                           <div className="flex flex-col">
-                                            <span className="text-2xl">{teamNum}</span>
-                                            <span className="text-xs font-bold opacity-80 mt-1 uppercase tracking-tighter">{alliance}</span>
+                                            <span className="text-lg">{teamNum}</span>
+                                            <span className="text-[10px] font-bold opacity-80 uppercase tracking-tighter">{alliance}</span>
                                           </div>
                                         </th>
                                       );
@@ -1525,35 +1556,68 @@ const AdminView: React.FC<AdminViewProps> = ({
                                 <tbody>
                                   {/* Data Rows */}
                                   {[
-                                    { label: t.teamNumberLabel, field: 'teamScouted', type: 'value' },
-                                    { label: isRTL ? 'עזיבה באוטונומי %' : 'Leave %', field: 'isAutoLeave', type: 'percentage' },
-                                    { label: isRTL ? 'יכולות אוטונומי' : 'Auto Hits', field: 'autoBallHit', type: 'average' },
-                                    { label: isRTL ? 'סוג חניה' : 'Parking Type', field: 'teleParkingFoul', type: 'parking' },
-                                    { label: isRTL ? 'טווח ירי' : 'Shooting Range', field: 'teleComments', type: 'shooting' }
+                                    { label: isRTL ? 'עזיבה באוטונומי %' : 'Leave %', type: 'percentage' },
+                                    { label: t.scoringAuto, type: 'auto_scoring' },
+                                    { label: t.generalHits, type: 'general_hits' },
+                                    { label: t.fouls, type: 'fouls' },
+                                    { label: t.parkingType, type: 'parking' },
+                                    { label: t.shootingRange, type: 'shooting' },
+                                    { label: t.collectionCapabilities, type: 'collection' }
                                   ].map((rowDef, rowIdx) => (
-                                    <tr key={rowIdx} className="border-b-4 border-black last:border-b-0">
-                                      <td className="p-3 bg-[#f3e8ff] border-e-4 border-black text-lg text-start">{rowDef.label}</td>
+                                    <tr key={rowIdx} className="border-b-2 border-black last:border-b-0">
+                                      <td className="p-2 bg-[#f3e8ff] border-e-2 border-black text-xs text-start">{rowDef.label}</td>
                                       {sortedMatchRows.map((row, i) => {
                                         const alliance = row.allianceColor || 'Red';
-                                        const bgColor = alliance === 'Red' ? 'bg-red-50/30' : 'bg-blue-50/30';
+                                        const bgColor = alliance === 'Red' ? 'bg-red-50/20' : 'bg-blue-50/20';
                                         
+                                        const CheckIcon = ({ checked, label }: { checked: boolean, label: string }) => (
+                                          <div className="flex items-center gap-1">
+                                            <div className={`w-3 h-3 border border-black flex items-center justify-center ${checked ? 'bg-black' : 'bg-white'}`}>
+                                              {checked && <div className="w-1.5 h-1.5 bg-white" />}
+                                            </div>
+                                            <span className="text-[9px] font-bold whitespace-nowrap">{label}</span>
+                                          </div>
+                                        );
+
                                         let displayValue: React.ReactNode = '-';
-                                        if (rowDef.type === 'value') {
-                                          displayValue = row[rowDef.field as keyof SpreadsheetRow] || '-';
-                                        } else if (rowDef.type === 'percentage') {
+                                        if (rowDef.type === 'percentage') {
                                           displayValue = row.isAutoLeave === true ? '100%' : '0%';
-                                        } else if (rowDef.type === 'average') {
-                                          displayValue = row[rowDef.field as keyof SpreadsheetRow] || '0';
+                                        } else if (rowDef.type === 'auto_scoring') {
+                                          displayValue = row.autoBallHit || '0';
+                                        } else if (rowDef.type === 'general_hits') {
+                                          displayValue = (row.autoBallHit || 0) + (row.teleBallHit || 0);
+                                        } else if (rowDef.type === 'fouls') {
+                                          displayValue = (
+                                            <div className="flex flex-col gap-0.5 items-start">
+                                              <CheckIcon checked={row.teleGateFoul === true} label={t.foulGate} />
+                                              <CheckIcon checked={row.teleIntakeFoul === true} label={t.foulIntake} />
+                                              <CheckIcon checked={row.teleParkingFoul === true} label={t.foulPark} />
+                                            </div>
+                                          );
                                         } else if (rowDef.type === 'parking') {
                                           const isElevator = row.teleParkingFoul;
                                           displayValue = isElevator ? (isRTL ? 'מעלית' : 'Elevator') : (isRTL ? 'לא מעלית' : 'No Elevator');
                                         } else if (rowDef.type === 'shooting') {
-                                          const isFar = (row.teleBallHit || 0) > 10;
-                                          displayValue = isFar ? (isRTL ? 'טווח רחוק' : 'Far Range') : (isRTL ? 'טווח קרוב' : 'Short Range');
+                                          const isNear = row.isAutoZoneSmall || row.isTeleopZoneSmall;
+                                          const isFar = row.isAutoZoneBig || row.isTeleopZoneBig;
+                                          displayValue = (
+                                            <div className="flex flex-col gap-0.5 items-start">
+                                              <CheckIcon checked={!!isNear} label={t.shootingNear} />
+                                              <CheckIcon checked={!!isFar} label={t.shootingFar} />
+                                            </div>
+                                          );
+                                        } else if (rowDef.type === 'collection') {
+                                          displayValue = (
+                                            <div className="flex flex-col gap-0.5 items-start">
+                                              <CheckIcon checked={row.teleFloor === true} label={t.collectionFloor} />
+                                              <CheckIcon checked={row.teleHumanPlayer === true} label={t.collectionHuman} />
+                                              <CheckIcon checked={row.autoIntakeUsed === true} label={t.collectionAuto} />
+                                            </div>
+                                          );
                                         }
 
                                         return (
-                                          <td key={i} className={`p-3 text-center border-e-4 border-black last:border-e-0 text-lg font-bold ${bgColor}`}>
+                                          <td key={i} className={`p-2 text-center border-e-2 border-black last:border-e-0 font-bold ${bgColor}`}>
                                             {displayValue}
                                           </td>
                                         );
