@@ -2,6 +2,9 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   LineChart, 
   Line, 
+  BarChart,
+  Bar,
+  Cell,
   XAxis, 
   YAxis, 
   CartesianGrid, 
@@ -9,7 +12,7 @@ import {
   Legend, 
   ResponsiveContainer 
 } from 'recharts';
-import { Search, Table as TableIcon, BarChart3, ArrowLeft, ChevronDown, Check, X, Trophy, RefreshCw, ScrollText, History, AlertCircle, Clock, Trash2 } from 'lucide-react';
+import { Search, Table as TableIcon, BarChart3, LineChart as LineChartIcon, ArrowLeft, ChevronDown, Check, X, Trophy, RefreshCw, ScrollText, History, AlertCircle, Clock, Trash2, LayoutGrid } from 'lucide-react';
 import { Language, SpreadsheetRow, TeamAggregatedData, ProcessLog } from '../../types';
 import { AdminTranslation_EN, AdminTranslation_HE } from '../translations';
 import { calculateTeamGrade } from '../../lib/gradingEngine';
@@ -52,6 +55,7 @@ const AdminView: React.FC<AdminViewProps> = ({
   onFetchGrades
 }) => {
   const [activeTab, setActiveTab] = useState<'investigation' | 'compare' | 'game' | 'logs'>('investigation');
+  const [compareSubTab, setCompareSubTab] = useState<'ranking' | 'performance'>('ranking');
   const [selectedMatch, setSelectedMatch] = useState<string>('');
   const [isMatchDropdownOpen, setIsMatchDropdownOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'graph' | 'table'>('graph');
@@ -564,6 +568,65 @@ const AdminView: React.FC<AdminViewProps> = ({
       })
       .sort((a, b) => a.rank - b.rank);
   }, [rankedTeams, compareSelectedTeams]);
+
+  const performanceComparisonData = useMemo(() => {
+    if (compareSelectedTeams.length === 0) return [];
+    
+    return compareSelectedTeams.map((teamNum, idx) => {
+      const teamRows = history.filter(r => r.recordType === 'MATCH_COMPLETE' && r.teamScouted?.toString() === teamNum);
+      const totalGames = teamRows.length;
+      
+      if (totalGames === 0) {
+        return {
+          team: teamNum,
+          shooting: 0,
+          collection: 0,
+          scoring: 0,
+          fouls: 0,
+          behavior: 0,
+          autonomous: 0,
+          color: COLORS[idx % COLORS.length]
+        };
+      }
+
+      let totalHits = 0;
+      let totalMisses = 0;
+      let autoHits = 0;
+      let fouls = 0;
+      let behaviorScore = 0;
+      let collectionCount = 0;
+
+      teamRows.forEach(r => {
+        const h = (r.autoBallHit || 0) + (r.teleBallHit || 0);
+        const m = (r.autoBallMiss || 0) + (r.teleBallMiss || 0);
+        totalHits += h;
+        totalMisses += m;
+        autoHits += (r.autoBallHit || 0);
+        fouls += (r.teleFoulCount || 0);
+        
+        // Behavioral proxy
+        if (r.teleFieldAwareness) behaviorScore++;
+        if (r.teleOverallSuccess) behaviorScore++;
+        if (!r.teleConfused) behaviorScore++;
+        
+        // Collection proxy
+        if (r.teleFloor || r.teleHumanPlayer || r.autoIntakeUsed) collectionCount++;
+      });
+
+      const totalBalls = totalHits + totalMisses;
+      
+      return {
+        team: teamNum,
+        shooting: totalBalls > 0 ? Math.round((totalHits / totalBalls) * 100) : 0,
+        collection: Math.round((collectionCount / totalGames) * 100),
+        scoring: Math.round(totalHits / totalGames), // Avg hits per game
+        fouls: Math.round((fouls / totalGames) * 10) / 10, // Avg fouls per game
+        behavior: Math.round((behaviorScore / (totalGames * 3)) * 100), // Pct of possible positive behaviors
+        autonomous: Math.round((autoHits / totalGames) * 10) / 10, // Avg auto hits
+        color: COLORS[idx % COLORS.length]
+      };
+    });
+  }, [history, compareSelectedTeams]);
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700" dir={isRTL ? 'rtl' : 'ltr'}>
@@ -1131,7 +1194,25 @@ const AdminView: React.FC<AdminViewProps> = ({
             {activeTab === 'compare' && (
               <>
                 {/* Compare Teams Filter Bar */}
-                <div className="p-4 sm:px-8 sm:pt-6 sm:pb-0">
+                <div className="p-4 sm:px-8 sm:pt-6 sm:pb-0 space-y-4">
+                  {/* Performance sub-tabs */}
+                  <div className="flex bg-slate-100 p-1 rounded-2xl w-fit">
+                    <button 
+                      onClick={() => setCompareSubTab('ranking')}
+                      className={`px-6 py-2 rounded-xl font-black text-xs transition-all flex items-center gap-2 ${compareSubTab === 'ranking' ? 'bg-white text-slate-900 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                      <Trophy size={14} />
+                      {t.teamRanking}
+                    </button>
+                    <button 
+                      onClick={() => setCompareSubTab('performance')}
+                      className={`px-6 py-2 rounded-xl font-black text-xs transition-all flex items-center gap-2 ${compareSubTab === 'performance' ? 'bg-white text-slate-900 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                      <BarChart3 size={14} />
+                      {t.performanceCompare}
+                    </button>
+                  </div>
+
                   <div className="flex flex-col md:flex-row gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm" dir="ltr">
                     <div className="flex-1 flex items-center gap-3" ref={compareTeamDropdownRef}>
                       <span className="text-slate-500 font-bold whitespace-nowrap">Teams:</span>
@@ -1194,6 +1275,7 @@ const AdminView: React.FC<AdminViewProps> = ({
 
                 <div className="p-4 sm:p-8 min-h-[400px]">
                   {compareSelectedTeams.length > 0 ? (
+                    compareSubTab === 'ranking' ? (
                     <div className="overflow-x-auto">
                       <table className="w-full text-start border-collapse" dir={isRTL ? 'rtl' : 'ltr'}>
                         <thead>
@@ -1231,6 +1313,51 @@ const AdminView: React.FC<AdminViewProps> = ({
                         </tbody>
                       </table>
                     </div>
+                    ) : (
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        {[
+                          { key: 'shooting', label: t.shootingCapabilitiesPct, unit: '%' },
+                          { key: 'collection', label: t.collectionCapabilitiesPct, unit: '%' },
+                          { key: 'scoring', label: t.scoring, unit: '' },
+                          { key: 'fouls', label: t.fouls, unit: '' },
+                          { key: 'behavior', label: t.behavior, unit: '%' },
+                          { key: 'autonomous', label: t.autonomous, unit: '' }
+                        ].map(metric => (
+                          <div key={metric.key} className="bg-slate-50 border-2 border-slate-200 rounded-[2rem] p-6 shadow-sm overflow-hidden">
+                            <h3 className="font-black text-slate-900 uppercase tracking-widest text-xs mb-6 flex items-center gap-2">
+                              <div className="w-1.5 h-6 bg-indigo-500 rounded-full" />
+                              {metric.label}
+                            </h3>
+                            <div className="h-[250px] w-full">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={performanceComparisonData} layout="vertical" margin={{ left: 20, right: 30, top: 0, bottom: 0 }}>
+                                  <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
+                                  <XAxis type="number" hide />
+                                  <YAxis 
+                                    dataKey="team" 
+                                    type="category" 
+                                    stroke="#64748b" 
+                                    fontSize={12} 
+                                    fontWeight="bold" 
+                                    width={60}
+                                  />
+                                  <Tooltip 
+                                    cursor={{ fill: 'transparent' }}
+                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                                    formatter={(value) => [`${value}${metric.unit}`, metric.label]}
+                                  />
+                                  <Bar dataKey={metric.key} radius={[0, 8, 8, 0]} barSize={24}>
+                                    {performanceComparisonData.map((entry, index) => (
+                                      <Cell key={`cell-${index}`} fill={entry.color} />
+                                    ))}
+                                  </Bar>
+                                </BarChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )
                   ) : (
                     <div className="flex-1 flex flex-col items-center justify-center text-slate-400 space-y-4 py-20">
                       <BarChart3 size={48} className="opacity-20" />
