@@ -52,7 +52,6 @@ const AdminView: React.FC<AdminViewProps> = ({
   onFetchGrades
 }) => {
   const [activeTab, setActiveTab] = useState<'investigation' | 'compare' | 'game' | 'logs'>('investigation');
-  const [compareTab, setCompareTab] = useState<'ranking' | 'auto'>('ranking');
   const [selectedMatch, setSelectedMatch] = useState<string>('');
   const [isMatchDropdownOpen, setIsMatchDropdownOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'graph' | 'table'>('graph');
@@ -162,12 +161,12 @@ const AdminView: React.FC<AdminViewProps> = ({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const metricDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Trigger grades fetch only when viewing compare ranking tab with selected teams
+  // Trigger grades fetch only when viewing compare tab with selected teams
   useEffect(() => {
-    if (activeTab === 'compare' && compareTab === 'ranking' && compareSelectedTeams.length > 0) {
+    if (activeTab === 'compare' && compareSelectedTeams.length > 0) {
       onFetchGrades();
     }
-  }, [activeTab, compareTab, compareSelectedTeams, onFetchGrades]);
+  }, [activeTab, compareSelectedTeams, onFetchGrades]);
   const investigationDropdownRef = useRef<HTMLDivElement>(null);
   const gameTeamDropdownRef = useRef<HTMLDivElement>(null);
   const gameMatchDropdownRef = useRef<HTMLDivElement>(null);
@@ -1082,6 +1081,7 @@ const AdminView: React.FC<AdminViewProps> = ({
                   </div>
                 </div>
 
+                {/* Remarks Section */}
                 <h3 className="font-black uppercase tracking-[0.2em] text-xs text-indigo-400 flex items-center gap-3 mb-6 mt-12">
                   <div className="w-8 h-[2px] bg-indigo-500" />
                   {t.remarks}
@@ -1130,26 +1130,6 @@ const AdminView: React.FC<AdminViewProps> = ({
       <div className="bg-white rounded-[2rem] overflow-hidden flex flex-col text-slate-900 shadow-xl border-2 border-slate-100">
             {activeTab === 'compare' && (
               <>
-                {/* Tab Navigation */}
-                <div className="flex border-b-2 border-slate-100 bg-slate-50/50 p-2 gap-2">
-                  {[
-                    { id: 'ranking', label: t.teamRanking },
-                    { id: 'auto', label: t.autonomous }
-                  ].map(tab => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setCompareTab(tab.id as any)}
-                      className={`px-6 py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all ${
-                        compareTab === tab.id 
-                          ? 'bg-slate-900 text-white shadow-lg' 
-                          : 'text-slate-400 hover:bg-slate-200 hover:text-slate-600'
-                      }`}
-                    >
-                      {tab.label}
-                    </button>
-                  ))}
-                </div>
-
                 {/* Compare Teams Filter Bar */}
                 <div className="p-4 sm:px-8 sm:pt-6 sm:pb-0">
                   <div className="flex flex-col md:flex-row gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm" dir="ltr">
@@ -1215,77 +1195,41 @@ const AdminView: React.FC<AdminViewProps> = ({
                 <div className="p-4 sm:p-8 min-h-[400px]">
                   {compareSelectedTeams.length > 0 ? (
                     <div className="overflow-x-auto">
-                      {compareTab === 'ranking' && (
-                        <table className="w-full text-start border-collapse" dir={isRTL ? 'rtl' : 'ltr'}>
-                          <thead>
-                            <tr className="bg-emerald-900 text-white">
-                              <th className="py-4 px-6 text-xs font-black uppercase tracking-widest text-start border-r border-emerald-800">{t.rank}</th>
-                              <th className="py-4 px-6 text-xs font-black uppercase tracking-widest text-start border-r border-emerald-800">{t.teamNumber}</th>
-                              <th className="py-4 px-6 text-xs font-black uppercase tracking-widest text-start border-r border-emerald-800">{isRTL ? 'משחקים' : 'Games'}</th>
-                              <th className="py-4 px-6 text-xs font-black uppercase tracking-widest text-start border-r border-emerald-800">{t.grade}</th>
-                              <th className="py-4 px-6 text-xs font-black uppercase tracking-widest text-start border-r border-emerald-800">{t.ratioTie}</th>
-                              <th className="py-4 px-6 text-xs font-black uppercase tracking-widest text-start border-r border-emerald-800">{t.avgAuto}</th>
-                              <th className="py-4 px-6 text-xs font-black uppercase tracking-widest text-start">{t.avgTele}</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {filteredRankedTeams.map(team => {
-                              const avgAuto = team.GAMES_COUNT > 0 ? (team.TOTAL_AUTONOMUS_HIT / team.GAMES_COUNT).toFixed(2) : '0.00';
-                              const avgTele = team.GAMES_COUNT > 0 ? (team.TOTAL_TELEOP_HIT / team.GAMES_COUNT).toFixed(2) : '0.00';
-                              return (
-                                <tr key={team.TeamNumber} className="border-b border-slate-200 hover:bg-slate-50 transition-colors">
-                                  <td className="py-4 px-6 font-black text-indigo-600 border-r border-slate-200">
-                                    <div className="flex items-center gap-2">
-                                      {team.rank <= 3 && <Trophy size={14} className={team.rank === 1 ? 'text-amber-400' : team.rank === 2 ? 'text-slate-400' : 'text-amber-700'} />}
-                                      #{team.rank}
-                                    </div>
-                                  </td>
-                                  <td className="py-4 px-6 font-black text-slate-900 border-r border-slate-200">{team.TeamNumber}</td>
-                                  <td className="py-4 px-6 font-bold text-slate-700 border-r border-slate-200">{team.GAMES_COUNT}</td>
-                                  <td className="py-4 px-6 font-black text-emerald-600 border-r border-slate-200">{team.grade}</td>
-                                  <td className="py-4 px-6 font-bold text-slate-500 border-r border-slate-200">{team.ratio}</td>
-                                  <td className="py-4 px-6 font-bold text-slate-700 border-r border-slate-200">{avgAuto}</td>
-                                  <td className="py-4 px-6 font-bold text-slate-700">{avgTele}</td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      )}
-
-                      {compareTab === 'auto' && (
-                        <table className="w-full text-start border-collapse" dir={isRTL ? 'rtl' : 'ltr'}>
-                          <thead>
-                            <tr className="bg-rose-900 text-white">
-                              <th className="py-4 px-6 text-xs font-black uppercase tracking-widest text-start border-r border-rose-800">{t.match}</th>
-                              <th className="py-4 px-6 text-xs font-black uppercase tracking-widest text-start border-r border-rose-800">{t.startPos}</th>
-                              <th className="py-4 px-6 text-xs font-black uppercase tracking-widest text-start border-r border-rose-800">{t.scored}</th>
-                              <th className="py-4 px-6 text-xs font-black uppercase tracking-widest text-start border-r border-rose-800">{t.missed}</th>
-                              <th className="py-4 px-6 text-xs font-black uppercase tracking-widest text-start">{t.leave}</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {history
-                              .filter(r => {
-                                const isMatchComplete = r.recordType === 'MATCH_COMPLETE';
-                                const isSelectedTeam = compareSelectedTeams.includes(r.teamScouted?.toString());
-                                return isMatchComplete && isSelectedTeam;
-                              })
-                              .sort((a, b) => parseInt(a.matchNumber || '0') - parseInt(b.matchNumber || '0'))
-                              .map((row, idx) => (
-                                <tr key={idx} className="border-b border-slate-200 hover:bg-slate-50 transition-colors">
-                                  <td className="py-4 px-6 font-bold text-slate-900 border-r border-slate-200">{row.matchNumber}</td>
-                                  <td className="py-4 px-6 font-bold text-slate-700 border-r border-slate-200">
-                                    {row.isAutoZoneBig ? t.bigTriangle : row.isAutoZoneSmall ? t.smallTriangle : '-'}
-                                  </td>
-                                  <td className="py-4 px-6 font-bold text-slate-700 border-r border-slate-200">{row.autoBallHit}</td>
-                                  <td className="py-4 px-6 font-bold text-slate-700 border-r border-slate-200">{row.autoBallMiss}</td>
-                                  <td className="py-4 px-6 font-bold text-slate-700">{row.isAutoLeave === true ? 'leave' : (isRTL ? 'לא' : 'No')}</td>
-                                </tr>
-                              ))}
-                          </tbody>
-                        </table>
-                      )}
+                      <table className="w-full text-start border-collapse" dir={isRTL ? 'rtl' : 'ltr'}>
+                        <thead>
+                          <tr className="bg-emerald-900 text-white">
+                            <th className="py-4 px-6 text-xs font-black uppercase tracking-widest text-start border-r border-emerald-800">{t.rank}</th>
+                            <th className="py-4 px-6 text-xs font-black uppercase tracking-widest text-start border-r border-emerald-800">{t.teamNumber}</th>
+                            <th className="py-4 px-6 text-xs font-black uppercase tracking-widest text-start border-r border-emerald-800">{isRTL ? 'משחקים' : 'Games'}</th>
+                            <th className="py-4 px-6 text-xs font-black uppercase tracking-widest text-start border-r border-emerald-800">{t.grade}</th>
+                            <th className="py-4 px-6 text-xs font-black uppercase tracking-widest text-start border-r border-emerald-800">{t.ratioTie}</th>
+                            <th className="py-4 px-6 text-xs font-black uppercase tracking-widest text-start border-r border-emerald-800">{t.avgAuto}</th>
+                            <th className="py-4 px-6 text-xs font-black uppercase tracking-widest text-start">{t.avgTele}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredRankedTeams.map(team => {
+                            const avgAuto = team.GAMES_COUNT > 0 ? (team.TOTAL_AUTONOMUS_HIT / team.GAMES_COUNT).toFixed(2) : '0.00';
+                            const avgTele = team.GAMES_COUNT > 0 ? (team.TOTAL_TELEOP_HIT / team.GAMES_COUNT).toFixed(2) : '0.00';
+                            return (
+                              <tr key={team.TeamNumber} className="border-b border-slate-200 hover:bg-slate-50 transition-colors">
+                                <td className="py-4 px-6 font-black text-indigo-600 border-r border-slate-200">
+                                  <div className="flex items-center gap-2">
+                                    {team.rank <= 3 && <Trophy size={14} className={team.rank === 1 ? 'text-amber-400' : team.rank === 2 ? 'text-slate-400' : 'text-amber-700'} />}
+                                    #{team.rank}
+                                  </div>
+                                </td>
+                                <td className="py-4 px-6 font-black text-slate-900 border-r border-slate-200">{team.TeamNumber}</td>
+                                <td className="py-4 px-6 font-bold text-slate-700 border-r border-slate-200">{team.GAMES_COUNT}</td>
+                                <td className="py-4 px-6 font-black text-emerald-600 border-r border-slate-200">{team.grade}</td>
+                                <td className="py-4 px-6 font-bold text-slate-500 border-r border-slate-200">{team.ratio}</td>
+                                <td className="py-4 px-6 font-bold text-slate-700 border-r border-slate-200">{avgAuto}</td>
+                                <td className="py-4 px-6 font-bold text-slate-700">{avgTele}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
                   ) : (
                     <div className="flex-1 flex flex-col items-center justify-center text-slate-400 space-y-4 py-20">
