@@ -227,6 +227,10 @@ const App: React.FC = () => {
           }
 
           console.log(`Seeding: Creating record for Team ${team} Match ${matchNum}...`);
+          const teleGateFoul = Math.random() > 0.7;
+          const teleParkingFoul = Math.random() > 0.7;
+          const teleIntakeFoul = Math.random() > 0.7;
+          
           const row = {
             sessionId: `seed-${Math.random().toString(36).substr(2, 9)}`,
             timestamp: new Date().toLocaleString(),
@@ -255,10 +259,10 @@ const App: React.FC = () => {
             teleIsFrozen: Math.random() > 0.9,
             teleConfused: Math.random() > 0.9,
             teleStoppedScoring: Math.random() > 0.9,
-            teleGateFoul: Math.random() > 0.9,
-            teleParkingFoul: Math.random() > 0.9,
-            teleIntakeFoul: Math.random() > 0.9,
-            teleFoulCount: 0,
+            teleGateFoul,
+            teleParkingFoul,
+            teleIntakeFoul,
+            teleFoulCount: Math.floor(Math.random() * 3),
             teleFullParking: Math.random() > 0.5,
             teleHumanPlayer: Math.random() > 0.5,
             teleFloor: Math.random() > 0.5,
