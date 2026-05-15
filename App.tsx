@@ -8,6 +8,7 @@ import SummaryBinding from './components/summary/SummaryBinding';
 import AdminBinding from './components/admin/AdminBinding';
 import { Layout } from './components/Layout';
 import { AppTranslation_EN, AppTranslation_HE, AuthTranslation_EN, AuthTranslation_HE } from './components/translations';
+import { motion } from 'motion/react';
 import { 
   ClipboardList, 
   Radio, 
@@ -16,7 +17,9 @@ import {
   ArrowLeft,
   X,
   RefreshCw,
-  Table as TableIcon
+  Table as TableIcon,
+  Database,
+  AlertCircle
 } from 'lucide-react';
 import {ENV}  from "./constants";
 
@@ -66,6 +69,7 @@ const App: React.FC = () => {
   const [summaryError, setSummaryError] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [isNavExpanded, setIsNavExpanded] = useState(false);
+  const [showSeedConfirm, setShowSeedConfirm] = useState(false);
   const [resetKey, setResetKey] = useState(0);
   const [isUpdateMode, setIsUpdateMode] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -109,7 +113,7 @@ const App: React.FC = () => {
 
     // Only poll status if we are in Admin or Management views
     if (phase === ScoutingPhase.MANAGEMENT || phase === ScoutingPhase.ADMIN) {
-      const interval = setInterval(checkStatus, 10000);
+      const interval = setInterval(checkStatus, 60000);
       return () => clearInterval(interval);
     }
   }, [phase]);
@@ -156,10 +160,10 @@ const App: React.FC = () => {
       fetchSettings();
       fetchTeamsGrades();
 
-      // Poll settings for lastConsolidationTime and status every 5 seconds (or more frequently)
+      // Poll settings for lastConsolidationTime and status every 60 seconds
       const pollInterval = setInterval(() => {
         fetchSettings();
-      }, 5000); 
+      }, 60000); 
 
       return () => clearInterval(pollInterval);
     }
@@ -181,21 +185,22 @@ const App: React.FC = () => {
   };
 
   const handleSeedData = async () => {
-    const confirmMsg = language === Language.HE 
-      ? 'פעולה זו תיצור נתוני דוגמה עבור 3 קבוצות ב-6 מקצים (בכפוף למגבלות) ותסנכרן אותן. להמשיך?'
-      : 'This will generate test data for 3 teams across 6 matches (subject to restrictions) and sync them. Continue?';
-    
-    if (!window.confirm(confirmMsg)) return;
-    
+    setShowSeedConfirm(false); // Close modal
     setSeedStatus('loading');
     setSeedError(null);
+    console.log('Seeding: Process started via custom confirm');
 
     try {
+      console.log('Seeding: Starting reset...');
       // Step 1: Reset system data (clears reports, logs, grades but keeps settings and users)
       const resetResp = await fetch('/api/admin/reset-system', { method: 'POST' });
-      if (!resetResp.ok) throw new Error('Failed to reset system data');
+      if (!resetResp.ok) {
+        const errorData = await resetResp.json();
+        throw new Error(errorData.error || 'Failed to reset system data');
+      }
 
-      const teams = ['15811', '15928', '25041'];
+      console.log('Seeding: Reset complete. Starting row generation...');
+      const teams = ['15811', '15928', '25041', '6798', '16473', '18833'];
       const scouterNames = ['TestScouter1', 'TestScouter2', 'TestScouter3'];
 
       // Get fresh history (should be empty now)
@@ -204,18 +209,24 @@ const App: React.FC = () => {
       let seededCount = 0;
       let skippedCount = 0;
 
-      for (const team of teams) {
-        for (let i = 1; i <= 6; i++) {
-          const matchNum = i.toString();
-          
+      for (let i = 1; i <= 10; i++) {
+        const matchNum = i.toString();
+        const startIndex = (i - 1) % teams.length;
+        const matchTeams = [];
+        for(let j=0; j<4; j++) {
+           matchTeams.push(teams[(startIndex + j) % teams.length]);
+        }
+
+        for (const team of matchTeams) {
           // Check restrictions
           const restriction = checkScoutingRestrictions(currentHistory, team, matchNum, 'TestSeed');
           if (restriction) {
-            console.log(`Skipping seeding for Team ${team} Match ${matchNum}: ${restriction}`);
+            console.log(`Seeding: Skipping Team ${team} Match ${matchNum}: ${restriction}`);
             skippedCount++;
             continue;
           }
 
+          console.log(`Seeding: Creating record for Team ${team} Match ${matchNum}...`);
           const row = {
             sessionId: `seed-${Math.random().toString(36).substr(2, 9)}`,
             timestamp: new Date().toLocaleString(),
@@ -866,11 +877,19 @@ const App: React.FC = () => {
                 <p className="text-xs text-slate-500 mb-6 leading-relaxed">
                   {isRTL ? 'צור רשומות משחקים פיקטיביות למטרות בדיקה.' : 'Generate dummy match records for testing purposes.'}
                 </p>
+                {seedStatus === 'loading' && (
+                  <p className="text-[10px] text-indigo-600 font-black mb-4 animate-pulse uppercase tracking-widest">
+                    {isRTL ? 'מעבד נתונים... אנא המתן' : 'Processing... Please wait'}
+                  </p>
+                )}
                 {seedStatus === 'error' && seedError && (
                   <p className="text-[10px] text-red-500 font-bold mb-4 line-clamp-2">{seedError}</p>
                 )}
                 <button
-                  onClick={handleSeedData}
+                  onClick={() => {
+                    console.log('Seed button clicked - showing confirm');
+                    setShowSeedConfirm(true);
+                  }}
                   disabled={seedStatus === 'loading'}
                   className={`w-full py-3 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all flex items-center justify-center gap-2 mt-auto ${getButtonClass(seedStatus)}`}
                 >
@@ -982,21 +1001,93 @@ const App: React.FC = () => {
   }
 
   return (
-    <Layout 
-      user={user} 
-      onLogout={handleLogout}
-      language={language}
-      onLanguageToggle={() => setLanguage(l => l === Language.HE ? Language.EN : Language.HE)}
-      isNavExpanded={isNavExpanded}
-      onToggleNav={() => setIsNavExpanded(!isNavExpanded)}
-      onLogoClick={() => setPhase(ScoutingPhase.AUTH)}
-    >
-      <div className="max-w-4xl mx-auto px-2 py-4 sm:px-4 sm:py-6" dir={language === Language.HE ? 'rtl' : 'ltr'}>
-        <div className="bg-white rounded-3xl shadow-2xl p-6">
-          {renderPhase()}
+    <>
+      {showSeedConfirm && (
+        <div className="fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-6">
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-[2rem] shadow-2xl p-8 max-w-md w-full border border-slate-100"
+          >
+            <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center text-amber-600 mb-6 mx-auto">
+              <AlertCircle size={32} />
+            </div>
+            <h2 className="text-2xl font-black text-slate-900 mb-4 text-center uppercase tracking-tight">
+              {language === Language.HE ? 'אישור יצירת נתונים' : 'Confirm Data Seeding'}
+            </h2>
+            <p className="text-slate-500 font-medium text-center leading-relaxed mb-8">
+              {language === Language.HE 
+                ? 'פעולה זו תמחק את כל הלוגים, הדוחות והציונים הקיימים ותייצר רשומות דמה חדשות עבור 6 קבוצות ב-10 מקצים. האם אתה בטוח?' 
+                : 'This will delete all current logs, reports, and grades, and generate new dummy records for 6 teams across 10 matches. Are you sure?'}
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <button 
+                onClick={() => setShowSeedConfirm(false)}
+                className="py-4 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-2xl font-black uppercase tracking-widest text-xs transition-all"
+              >
+                {language === Language.HE ? 'ביטול' : 'Cancel'}
+              </button>
+              <button 
+                onClick={handleSeedData}
+                className="py-4 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-rose-200 hover:shadow-none transition-all"
+              >
+                {language === Language.HE ? 'אשר וצור' : 'Confirm & Generate'}
+              </button>
+            </div>
+          </motion.div>
         </div>
-      </div>
-    </Layout>
+      )}
+      {seedStatus === 'loading' && (
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 text-center"
+        >
+          <div className="bg-white rounded-3xl shadow-2xl p-10 max-w-sm w-full border border-white/20 flex flex-col items-center">
+            <div className="relative w-20 h-20 mb-8">
+              <div className="absolute inset-0 border-4 border-indigo-100 rounded-full"></div>
+              <div className="absolute inset-0 border-4 border-indigo-600 rounded-full border-t-transparent animate-spin"></div>
+              <div className="absolute inset-0 flex items-center justify-center text-indigo-600">
+                <Database size={32} />
+              </div>
+            </div>
+            <h2 className="text-2xl font-black text-slate-800 mb-2 uppercase tracking-tight">
+              {language === Language.HE ? 'יוצר נתוני דמו' : 'Seeding Data'}
+            </h2>
+            <p className="text-slate-500 font-medium leading-relaxed">
+              {language === Language.HE 
+                ? 'המערכת מייצרת כרגע נתוני דוגמה ומסנכרנת את בסיס הנתונים. אנא המתן לסיום הפעולה.' 
+                : 'Generating match records and synchronizing database. Please wait until the process completes.'}
+            </p>
+            <div className="mt-8 flex gap-1 justify-center">
+              {[0, 1, 2].map((i) => (
+                <motion.div
+                  key={i}
+                  animate={{ scale: [1, 1.5, 1], opacity: [0.3, 1, 0.3] }}
+                  transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
+                  className="w-2 h-2 bg-indigo-600 rounded-full"
+                />
+              ))}
+            </div>
+          </div>
+        </motion.div>
+      )}
+      <Layout 
+        user={user} 
+        onLogout={handleLogout}
+        language={language}
+        onLanguageToggle={() => setLanguage(l => l === Language.HE ? Language.EN : Language.HE)}
+        isNavExpanded={isNavExpanded}
+        onToggleNav={() => setIsNavExpanded(!isNavExpanded)}
+        onLogoClick={() => setPhase(ScoutingPhase.AUTH)}
+      >
+        <div className="max-w-4xl mx-auto px-2 py-4 sm:px-4 sm:py-6" dir={language === Language.HE ? 'rtl' : 'ltr'}>
+          <div className="bg-white rounded-3xl shadow-2xl p-6">
+            {renderPhase()}
+          </div>
+        </div>
+      </Layout>
+    </>
   );
 };
 

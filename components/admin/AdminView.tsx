@@ -12,7 +12,7 @@ import {
   Legend, 
   ResponsiveContainer 
 } from 'recharts';
-import { Search, Table as TableIcon, BarChart3, LineChart as LineChartIcon, ArrowLeft, ChevronDown, Check, X, Trophy, RefreshCw, ScrollText, History, AlertCircle, Clock, LayoutGrid } from 'lucide-react';
+import { Search, Table as TableIcon, BarChart3, LineChart as LineChartIcon, ArrowLeft, ChevronDown, Check, X, Trophy, RefreshCw, ScrollText, History, AlertCircle, Clock, LayoutGrid, Database } from 'lucide-react';
 import { Language, SpreadsheetRow, TeamAggregatedData, ProcessLog } from '../../types';
 import { AdminTranslation_EN, AdminTranslation_HE } from '../translations';
 import { calculateTeamGrade } from '../../lib/gradingEngine';
@@ -126,7 +126,7 @@ const AdminView: React.FC<AdminViewProps> = ({
         }
       };
       fetchLogs();
-      const interval = setInterval(fetchLogs, 15000);
+      const interval = setInterval(fetchLogs, 45000);
       return () => clearInterval(interval);
     }
   }, [activeTab]);
@@ -1785,6 +1785,19 @@ const AdminView: React.FC<AdminViewProps> = ({
                   <RefreshCw size={14} />
                 </div>
                 {t.runDiagnostics}
+              </button>
+
+              <button
+                onClick={onSeed}
+                disabled={isSeeding}
+                className="flex items-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-700 transition-all disabled:opacity-50"
+              >
+                {isSeeding ? (
+                   <RefreshCw size={14} className="animate-spin" />
+                ) : (
+                  <Database size={14} />
+                )}
+                {isRTL ? 'צור נתוני דוגמה' : 'Generate Samples'}
               </button>
             </div>
 

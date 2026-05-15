@@ -6,8 +6,8 @@ import {ENV}  from "./constants";
 const SHEET_NAME = ENV.SHEET_NAME;
 
 
-const TEAMS = ['15811', '15928', '25041', '6798'];
-const MATCHES = [1, 2, 3, 4, 5, 6];
+const TEAMS = ['15811', '15928', '25041', '6798','16473','18833'];
+const MATCHES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 const POSITIONS = ['Red 1', 'Red 2', 'Blue 1', 'Blue 2'];
 
 const ALL_HEADERS = [

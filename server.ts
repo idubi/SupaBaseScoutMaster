@@ -134,7 +134,7 @@ async function startServer() {
       console.log("[API] Resetting system data for seed...");
       
       // 1. Clear reports
-      await supabase.from('scoutsmaster_ongoing').delete().neq('id', -1);
+      await supabase.from('scoutsmaster_ongoing').delete().neq('sessionId', '_');
       
       // 2. Clear logs
       await supabase.from('job_execution_logs').delete().neq('id', '_');
