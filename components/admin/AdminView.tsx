@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   LineChart, 
   Line, 
@@ -35,6 +36,72 @@ interface AdminViewProps {
   onUpdateSettings: (settings: { isAutoCalcActive?: boolean }) => void;
   onFetchGrades: () => void;
 }
+
+const CustomPerformanceTooltip = ({ active, payload, label, language, metricKey }: any) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    const value = payload[0].value;
+    const details = data.details;
+
+    return (
+      <div className="bg-white p-4 rounded-xl shadow-xl border border-slate-200 min-w-[250px]" dir={language === Language.HE ? 'rtl' : 'ltr'}>
+        <div className="font-black text-slate-800 border-b border-slate-100 pb-2 mb-2 flex justify-between items-center gap-4">
+          <span>{label}</span>
+          <span className="text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md text-lg">
+            {value}{['shooting', 'collection', 'behavior'].includes(metricKey) ? '%' : ''}
+          </span>
+        </div>
+        
+        <div className="text-sm space-y-2 text-slate-600">
+          {metricKey === 'shooting' && (
+            <>
+              <div className="flex justify-between"><span>{language === Language.HE ? 'סה״כ פגיעות' : 'Total Hits'}:</span> <span className="font-bold text-slate-800">{details.totalHits}</span></div>
+              <div className="flex justify-between"><span>{language === Language.HE ? 'סה״כ כדורים (פגיעות + החטאות)' : 'Total Balls'}:</span> <span className="font-bold text-slate-800">{details.totalBalls}</span></div>
+            </>
+          )}
+          {metricKey === 'collection' && (
+            <>
+              <div className="flex justify-between"><span>{language === Language.HE ? 'איסוף רצפה' : 'Floor Collection'}:</span> <span className="font-bold text-slate-800">{details.teleFloorCount} / {details.totalGames}</span></div>
+              <div className="flex justify-between"><span>{language === Language.HE ? 'איסוף ידני' : 'Manual Collection'}:</span> <span className="font-bold text-slate-800">{details.teleHumanPlayerCount} / {details.totalGames}</span></div>
+              <div className="flex justify-between"><span>{language === Language.HE ? 'איסוף אוטונומי' : 'Auto Collection'}:</span> <span className="font-bold text-slate-800">{details.autoIntakeCount} / {details.totalGames}</span></div>
+              <div className="flex justify-between border-t border-slate-100 pt-1 mt-1"><span>{language === Language.HE ? 'סה״כ איסוף' : 'Total Collection Actions'}:</span> <span className="font-bold text-slate-800">{details.collectionCount}</span></div>
+              <div className="flex justify-between"><span>{language === Language.HE ? 'פעולות אפשריות' : 'Possible Actions'}:</span> <span className="font-bold text-slate-800">{details.totalGames * 3}</span></div>
+            </>
+          )}
+          {metricKey === 'scoring' && (
+            <>
+              <div className="flex justify-between"><span>{language === Language.HE ? 'סה״כ פגיעות' : 'Total Hits'}:</span> <span className="font-bold text-slate-800">{details.totalHits}</span></div>
+              <div className="flex justify-between"><span>{language === Language.HE ? 'סך משחקים' : 'Total Games'}:</span> <span className="font-bold text-slate-800">{details.totalGames}</span></div>
+            </>
+          )}
+          {metricKey === 'fouls' && (
+            <>
+              <div className="flex justify-between"><span>{language === Language.HE ? 'סה״כ עבירות' : 'Total Fouls'}:</span> <span className="font-bold text-slate-800">{details.fouls}</span></div>
+              <div className="flex justify-between"><span>{language === Language.HE ? 'סך משחקים' : 'Total Games'}:</span> <span className="font-bold text-slate-800">{details.totalGames}</span></div>
+            </>
+          )}
+          {metricKey === 'behavior' && (
+            <>
+              <div className="flex justify-between"><span>{language === Language.HE ? 'מודעות למגרש' : 'Field Awareness'}:</span> <span className="font-bold text-slate-800">{details.fieldAwarenessCount} / {details.totalGames}</span></div>
+              <div className="flex justify-between"><span>{language === Language.HE ? 'הצלחה כללית' : 'Overall Success'}:</span> <span className="font-bold text-slate-800">{details.overallSuccessCount} / {details.totalGames}</span></div>
+              <div className="flex justify-between"><span>{language === Language.HE ? 'פעולה עקבית/ללא בלבול' : 'Consistent Action/Not Confused'}:</span> <span className="font-bold text-slate-800">{details.notConfusedCount} / {details.totalGames}</span></div>
+              <div className="flex justify-between border-t border-slate-100 pt-1 mt-1"><span>{language === Language.HE ? 'סה״כ נקודות התנהגות' : 'Total Behavior Points'}:</span> <span className="font-bold text-slate-800">{details.behaviorScore}</span></div>
+              <div className="flex justify-between"><span>{language === Language.HE ? 'נקודות אפשריות' : 'Possible Points'}:</span> <span className="font-bold text-slate-800">{details.totalGames * 3}</span></div>
+            </>
+          )}
+          {metricKey === 'autonomous' && (
+            <>
+              <div className="flex justify-between"><span>{language === Language.HE ? 'פגיעות אוטונומי' : 'Auto Hits'}:</span> <span className="font-bold text-slate-800">{details.autoHits}</span></div>
+              <div className="flex justify-between"><span>{language === Language.HE ? 'סך משחקים' : 'Total Games'}:</span> <span className="font-bold text-slate-800">{details.totalGames}</span></div>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+};
 
 const AdminView: React.FC<AdminViewProps> = ({ 
   language, 
@@ -146,6 +213,7 @@ const AdminView: React.FC<AdminViewProps> = ({
   const [isGameTeamDropdownOpen, setIsGameTeamDropdownOpen] = useState(false);
   const [isGameMatchDropdownOpen, setIsGameMatchDropdownOpen] = useState(false);
   const [isCompareTeamDropdownOpen, setIsCompareTeamDropdownOpen] = useState(false);
+  const [selectedGradeDetails, setSelectedGradeDetails] = useState<any | null>(null);
   
   const dropdownRef = useRef<HTMLDivElement>(null);
   const metricDropdownRef = useRef<HTMLDivElement>(null);
@@ -523,11 +591,12 @@ const AdminView: React.FC<AdminViewProps> = ({
 
     // 2. Calculate grades for all teams
     const teamsWithGrades = uniqueTeamsGrades.map(teamData => {
-      const { grade, ratio } = calculateTeamGrade(teamData);
+      const { grade, ratio, gradeDetails } = calculateTeamGrade(teamData);
       return {
         ...teamData,
         grade,
-        ratio
+        ratio,
+        gradeDetails
       };
     });
 
@@ -554,6 +623,12 @@ const AdminView: React.FC<AdminViewProps> = ({
       .sort((a, b) => a.rank - b.rank);
   }, [rankedTeams, compareSelectedTeams]);
 
+  const [selectedPerformanceDetails, setSelectedPerformanceDetails] = useState<{
+    team: string;
+    category: 'shooting' | 'collection' | 'scoring' | 'fouls' | 'behavior' | 'autonomous';
+    data: any;
+  } | null>(null);
+
   const performanceComparisonData = useMemo(() => {
     if (compareSelectedTeams.length === 0) return [];
     
@@ -561,6 +636,8 @@ const AdminView: React.FC<AdminViewProps> = ({
       const teamRows = history.filter(r => r.recordType === 'MATCH_COMPLETE' && r.teamScouted?.toString() === teamNum);
       const totalGames = teamRows.length;
       
+      const emptyDetails = { totalHits: 0, totalMisses: 0, totalBalls: 0, totalGames: 0, collectionCount: 0, fouls: 0, behaviorScore: 0, fieldAwarenessCount: 0, overallSuccessCount: 0, notConfusedCount: 0, autoHits: 0, teleFloorCount: 0, teleHumanPlayerCount: 0, autoIntakeCount: 0 };
+
       if (totalGames === 0) {
         return {
           team: teamNum,
@@ -570,7 +647,8 @@ const AdminView: React.FC<AdminViewProps> = ({
           fouls: 0,
           behavior: 0,
           autonomous: 0,
-          color: COLORS[idx % COLORS.length]
+          color: COLORS[idx % COLORS.length],
+          details: emptyDetails
         };
       }
 
@@ -579,7 +657,13 @@ const AdminView: React.FC<AdminViewProps> = ({
       let autoHits = 0;
       let fouls = 0;
       let behaviorScore = 0;
+      let fieldAwarenessCount = 0;
+      let overallSuccessCount = 0;
+      let notConfusedCount = 0;
       let collectionCount = 0;
+      let teleFloorCount = 0;
+      let teleHumanPlayerCount = 0;
+      let autoIntakeCount = 0;
 
       teamRows.forEach(r => {
         const h = (r.autoBallHit || 0) + (r.teleBallHit || 0);
@@ -590,25 +674,44 @@ const AdminView: React.FC<AdminViewProps> = ({
         fouls += (r.teleFoulCount || 0);
         
         // Behavioral proxy
-        if (r.teleFieldAwareness) behaviorScore++;
-        if (r.teleOverallSuccess) behaviorScore++;
-        if (!r.teleConfused) behaviorScore++;
+        if (r.teleFieldAwareness) { behaviorScore++; fieldAwarenessCount++; }
+        if (r.teleOverallSuccess) { behaviorScore++; overallSuccessCount++; }
+        if (!r.teleConfused) { behaviorScore++; notConfusedCount++; }
         
         // Collection proxy
-        if (r.teleFloor || r.teleHumanPlayer || r.autoIntakeUsed) collectionCount++;
+        if (r.teleFloor) { collectionCount++; teleFloorCount++; }
+        if (r.teleHumanPlayer) { collectionCount++; teleHumanPlayerCount++; }
+        if (r.autoIntakeUsed) { collectionCount++; autoIntakeCount++; }
       });
+
 
       const totalBalls = totalHits + totalMisses;
       
       return {
         team: teamNum,
         shooting: totalBalls > 0 ? Math.round((totalHits / totalBalls) * 100) : 0,
-        collection: Math.round((collectionCount / totalGames) * 100),
-        scoring: Math.round(totalHits / totalGames), // Avg hits per game
+        collection: Math.round((collectionCount / (totalGames * 3)) * 100),
+        scoring: Math.round((totalHits / totalGames) * 10) / 10, // Avg hits per game
         fouls: Math.round((fouls / totalGames) * 10) / 10, // Avg fouls per game
         behavior: Math.round((behaviorScore / (totalGames * 3)) * 100), // Pct of possible positive behaviors
         autonomous: Math.round((autoHits / totalGames) * 10) / 10, // Avg auto hits
-        color: COLORS[idx % COLORS.length]
+        color: COLORS[idx % COLORS.length],
+        details: {
+           totalHits,
+           totalMisses,
+           totalBalls,
+           totalGames,
+           collectionCount,
+           fouls,
+           behaviorScore,
+           fieldAwarenessCount,
+           overallSuccessCount,
+           notConfusedCount,
+           autoHits,
+           teleFloorCount,
+           teleHumanPlayerCount,
+           autoIntakeCount
+        }
       };
     });
   }, [history, compareSelectedTeams]);
@@ -1288,7 +1391,11 @@ const AdminView: React.FC<AdminViewProps> = ({
                                 </td>
                                 <td className="py-4 px-6 font-black text-slate-900 border-r border-slate-200">{team.TeamNumber}</td>
                                 <td className="py-4 px-6 font-bold text-slate-700 border-r border-slate-200">{team.GAMES_COUNT}</td>
-                                <td className="py-4 px-6 font-black text-emerald-600 border-r border-slate-200">{team.grade}</td>
+                                <td className="py-4 px-6 font-black text-emerald-600 border-r border-slate-200">
+                                  <button onClick={() => setSelectedGradeDetails(team)} className="hover:underline focus:outline-none">
+                                    {team.grade}
+                                  </button>
+                                </td>
                                 <td className="py-4 px-6 font-bold text-slate-500 border-r border-slate-200">{team.ratio}</td>
                                 <td className="py-4 px-6 font-bold text-slate-700 border-r border-slate-200">{avgAuto}</td>
                                 <td className="py-4 px-6 font-bold text-slate-700">{avgTele}</td>
@@ -1328,9 +1435,8 @@ const AdminView: React.FC<AdminViewProps> = ({
                                       width={60}
                                     />
                                     <Tooltip 
+                                      content={<CustomPerformanceTooltip language={language} metricKey={metric.key} />}
                                       cursor={{ fill: 'transparent' }}
-                                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                                      formatter={(value) => [`${value}${metric.unit}`, metric.label]}
                                     />
                                     <Bar dataKey={metric.key} radius={[0, 8, 8, 0]} barSize={24}>
                                       {performanceComparisonData.map((entry, index) => (
@@ -1361,12 +1467,36 @@ const AdminView: React.FC<AdminViewProps> = ({
                               {performanceComparisonData.map(team => (
                                 <tr key={team.team} className="border-b border-slate-200 hover:bg-slate-50 transition-colors">
                                   <td className="py-4 px-6 font-black text-slate-900 border-r border-slate-200">{team.team}</td>
-                                  <td className="py-4 px-6 font-bold text-slate-700 border-r border-slate-200">{team.shooting}%</td>
-                                  <td className="py-4 px-6 font-bold text-slate-700 border-r border-slate-200">{team.collection}%</td>
-                                  <td className="py-4 px-6 font-bold text-slate-700 border-r border-slate-200">{team.scoring}</td>
-                                  <td className="py-4 px-6 font-bold text-slate-700 border-r border-slate-200">{team.fouls}</td>
-                                  <td className="py-4 px-6 font-bold text-slate-700 border-r border-slate-200">{team.behavior}%</td>
-                                  <td className="py-4 px-6 font-bold text-slate-700">{team.autonomous}</td>
+                                  <td className="py-4 px-6 font-bold text-emerald-600 border-r border-slate-200">
+                                    <button onClick={() => setSelectedPerformanceDetails({team: team.team, category: 'shooting', data: team})} className="hover:underline focus:outline-none">
+                                      {team.shooting}%
+                                    </button>
+                                  </td>
+                                  <td className="py-4 px-6 font-bold text-emerald-600 border-r border-slate-200">
+                                    <button onClick={() => setSelectedPerformanceDetails({team: team.team, category: 'collection', data: team})} className="hover:underline focus:outline-none">
+                                      {team.collection}%
+                                    </button>
+                                  </td>
+                                  <td className="py-4 px-6 font-bold text-emerald-600 border-r border-slate-200">
+                                    <button onClick={() => setSelectedPerformanceDetails({team: team.team, category: 'scoring', data: team})} className="hover:underline focus:outline-none">
+                                      {team.scoring}
+                                    </button>
+                                  </td>
+                                  <td className="py-4 px-6 font-bold text-emerald-600 border-r border-slate-200">
+                                    <button onClick={() => setSelectedPerformanceDetails({team: team.team, category: 'fouls', data: team})} className="hover:underline focus:outline-none">
+                                      {team.fouls}
+                                    </button>
+                                  </td>
+                                  <td className="py-4 px-6 font-bold text-emerald-600 border-r border-slate-200">
+                                    <button onClick={() => setSelectedPerformanceDetails({team: team.team, category: 'behavior', data: team})} className="hover:underline focus:outline-none">
+                                      {team.behavior}%
+                                    </button>
+                                  </td>
+                                  <td className="py-4 px-6 font-bold text-emerald-600">
+                                    <button onClick={() => setSelectedPerformanceDetails({team: team.team, category: 'autonomous', data: team})} className="hover:underline focus:outline-none">
+                                      {team.autonomous}
+                                    </button>
+                                  </td>
                                 </tr>
                               ))}
                             </tbody>
@@ -1865,6 +1995,217 @@ const AdminView: React.FC<AdminViewProps> = ({
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Grade Details Modal */}
+      {selectedGradeDetails && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-[8px_8px_0px_0px_rgba(0,0,0,0.1)] overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="bg-emerald-900 px-6 py-4 flex items-center justify-between border-b-4 border-emerald-800">
+              <h3 className="font-black text-white text-lg tracking-wide uppercase">
+                {language === Language.HE ? 'פירוט חישוב ציון' : 'Grade Details'} - {selectedGradeDetails.TeamNumber}
+              </h3>
+              <button 
+                onClick={() => setSelectedGradeDetails(null)}
+                className="text-white hover:text-emerald-200 transition-colors bg-emerald-800 p-2 rounded-xl"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto space-y-6">
+              <div className="flex items-center justify-center py-4 bg-slate-50 rounded-2xl border-2 border-slate-100">
+                <div className="text-center">
+                  <p className="text-slate-500 font-bold uppercase tracking-widest text-xs mb-1">
+                    {language === Language.HE ? 'ציון סופי' : 'Final Grade'}
+                  </p>
+                  <p className="text-5xl font-black text-emerald-600">
+                    {selectedGradeDetails.grade}
+                  </p>
+                </div>
+              </div>
+
+              {selectedGradeDetails.gradeDetails ? (
+                <div className="space-y-4">
+                  <h4 className="font-bold text-slate-800 border-b-2 border-slate-100 pb-2 flex justify-between">
+                    <span>{language === Language.HE ? 'רכיב' : 'Component'}</span>
+                    <span>{language === Language.HE ? 'ממוצע (סה״כ / משחקים) × משקל' : 'Average (Total / Games) × Weight'}</span>
+                  </h4>
+                  
+                  <div className="space-y-3 font-medium text-sm">
+                    <div className="flex justify-between items-center bg-green-50 p-3 rounded-lg border border-green-100">
+                      <span className="text-slate-700">{language === Language.HE ? 'פגיעות אוטונומי' : 'Auto Hits'}</span>
+                      <span className="text-emerald-700 font-bold text-left" dir="ltr">
+                        {selectedGradeDetails.gradeDetails.avgAutoHit.toFixed(2)} ({selectedGradeDetails.TOTAL_AUTONOMUS_HIT}/{selectedGradeDetails.GAMES_COUNT}) × {selectedGradeDetails.gradeDetails.weights.POINTS_AUTO_HIT} = +{(selectedGradeDetails.gradeDetails.avgAutoHit * selectedGradeDetails.gradeDetails.weights.POINTS_AUTO_HIT).toFixed(2)}
+                      </span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center bg-green-50 p-3 rounded-lg border border-green-100">
+                      <span className="text-slate-700">{language === Language.HE ? 'פגיעות טלאופ' : 'Teleop Hits'}</span>
+                      <span className="text-emerald-700 font-bold text-left" dir="ltr">
+                        {selectedGradeDetails.gradeDetails.avgTeleopHit.toFixed(2)} ({selectedGradeDetails.TOTAL_TELEOP_HIT}/{selectedGradeDetails.GAMES_COUNT}) × {selectedGradeDetails.gradeDetails.weights.POINTS_TELEOP_HIT} = +{(selectedGradeDetails.gradeDetails.avgTeleopHit * selectedGradeDetails.gradeDetails.weights.POINTS_TELEOP_HIT).toFixed(2)}
+                      </span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center bg-blue-50 p-3 rounded-lg border border-blue-100">
+                      <span className="text-slate-700">{language === Language.HE ? 'חניה' : 'Parking'}</span>
+                      <span className="text-blue-700 font-bold text-left" dir="ltr">
+                        {selectedGradeDetails.gradeDetails.avgParking.toFixed(2)} ({selectedGradeDetails.TOTAL_IS_FULL_PARKING}/{selectedGradeDetails.GAMES_COUNT}) × {selectedGradeDetails.gradeDetails.weights.POINTS_PARKING} = +{(selectedGradeDetails.gradeDetails.avgParking * selectedGradeDetails.gradeDetails.weights.POINTS_PARKING).toFixed(2)}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center bg-red-50 p-3 rounded-lg border border-red-100">
+                      <span className="text-slate-700">{language === Language.HE ? 'החטאות אוטונומי' : 'Auto Misses'}</span>
+                      <span className="text-red-700 font-bold text-left" dir="ltr">
+                        {selectedGradeDetails.gradeDetails.avgAutoMiss.toFixed(2)} ({selectedGradeDetails.TOTAL_AUTONOMUS_MISS}/{selectedGradeDetails.GAMES_COUNT}) × {selectedGradeDetails.gradeDetails.weights.POINTS_AUTO_MISS} = {(selectedGradeDetails.gradeDetails.avgAutoMiss * selectedGradeDetails.gradeDetails.weights.POINTS_AUTO_MISS).toFixed(2)}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center bg-red-50 p-3 rounded-lg border border-red-100">
+                      <span className="text-slate-700">{language === Language.HE ? 'החטאות טלאופ' : 'Teleop Misses'}</span>
+                      <span className="text-red-700 font-bold text-left" dir="ltr">
+                        {selectedGradeDetails.gradeDetails.avgTeleopMiss.toFixed(2)} ({selectedGradeDetails.TOTAL_TELEOP_MISS}/{selectedGradeDetails.GAMES_COUNT}) × {selectedGradeDetails.gradeDetails.weights.POINTS_TELEOP_MISS} = {(selectedGradeDetails.gradeDetails.avgTeleopMiss * selectedGradeDetails.gradeDetails.weights.POINTS_TELEOP_MISS).toFixed(2)}
+                      </span>
+                    </div>
+                    
+                    <div className="flex justify-between items-center bg-orange-50 p-3 rounded-lg border border-orange-100">
+                      <span className="text-slate-700">{language === Language.HE ? 'עבירות' : 'Fouls'}</span>
+                      <span className="text-orange-700 font-bold text-left" dir="ltr">
+                        {selectedGradeDetails.gradeDetails.avgFouls.toFixed(2)} ({selectedGradeDetails.TOTAL_FOULS}/{selectedGradeDetails.GAMES_COUNT}) × {selectedGradeDetails.gradeDetails.weights.POINTS_FAUL} = {(selectedGradeDetails.gradeDetails.avgFouls * selectedGradeDetails.gradeDetails.weights.POINTS_FAUL).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center text-slate-500 py-4 font-medium">
+                  {language === Language.HE ? 'לא נמצאו פרטים נוספים.' : 'No additional details found.'}
+                </div>
+              )}
+            </div>
+            <div className="p-4 border-t-2 border-slate-100 bg-slate-50">
+              <button 
+                onClick={() => setSelectedGradeDetails(null)}
+                className="w-full bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-3 rounded-xl transition-colors"
+              >
+                {language === Language.HE ? 'סגור' : 'Close'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Performance Details Modal */}
+      {selectedPerformanceDetails && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl w-full max-w-lg shadow-[8px_8px_0px_0px_rgba(0,0,0,0.1)] overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="bg-indigo-900 px-6 py-4 flex items-center justify-between border-b-4 border-indigo-800">
+              <h3 className="font-black text-white text-lg tracking-wide uppercase">
+                {language === Language.HE ? 'פרטי חישוב' : 'Calculation Details'} - {selectedPerformanceDetails.team}
+              </h3>
+              <button 
+                onClick={() => setSelectedPerformanceDetails(null)}
+                className="text-white hover:text-indigo-200 transition-colors bg-indigo-800 p-2 rounded-xl"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto space-y-6">
+              <div className="flex items-center justify-center py-4 bg-slate-50 rounded-2xl border-2 border-slate-100">
+                <div className="text-center">
+                  <p className="text-slate-500 font-bold uppercase tracking-widest text-xs mb-1">
+                    {language === Language.HE ? 'ערך סופי' : 'Final Value'}
+                  </p>
+                  <p className="text-5xl font-black text-indigo-600">
+                    {selectedPerformanceDetails.data[selectedPerformanceDetails.category]}
+                    {['shooting', 'collection', 'behavior'].includes(selectedPerformanceDetails.category) ? '%' : ''}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <h4 className="font-bold text-slate-800 border-b-2 border-slate-100 pb-2">
+                  {language === Language.HE ? 'הסבר חישוב' : 'Calculation Breakdown'}
+                </h4>
+                
+                <div className="space-y-3 font-medium text-sm text-slate-700 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                  {selectedPerformanceDetails.category === 'shooting' && (
+                    <>
+                      <p><strong>{language === Language.HE ? 'סה״כ פגיעות' : 'Total Hits'}:</strong> {selectedPerformanceDetails.data.details.totalHits}</p>
+                      <p><strong>{language === Language.HE ? 'סה״כ כדורים (פגיעות + החטאות)' : 'Total Balls (Hits + Misses)'}:</strong> {selectedPerformanceDetails.data.details.totalBalls}</p>
+                      <p className="pt-2 border-t border-slate-200 mt-2">
+                        <em>{language === Language.HE ? 'פגיעות חלקי סך הכל כדורים כפול 100.' : 'Hits divided by total balls times 100.'}</em>
+                      </p>
+                    </>
+                  )}
+                  {selectedPerformanceDetails.category === 'collection' && (
+                    <>
+                      <p><strong>{language === Language.HE ? 'איסוף רצפה' : 'Floor Collection'}:</strong> {selectedPerformanceDetails.data.details.teleFloorCount} / {selectedPerformanceDetails.data.details.totalGames}</p>
+                      <p><strong>{language === Language.HE ? 'איסוף ידני' : 'Manual Collection'}:</strong> {selectedPerformanceDetails.data.details.teleHumanPlayerCount} / {selectedPerformanceDetails.data.details.totalGames}</p>
+                      <p><strong>{language === Language.HE ? 'איסוף אוטונומי' : 'Auto Collection'}:</strong> {selectedPerformanceDetails.data.details.autoIntakeCount} / {selectedPerformanceDetails.data.details.totalGames}</p>
+                      <div className="pt-2 border-t border-slate-200 mt-2">
+                        <p><strong>{language === Language.HE ? 'סה״כ איסוף' : 'Total Collection Actions'}:</strong> {selectedPerformanceDetails.data.details.collectionCount}</p>
+                        <p><strong>{language === Language.HE ? 'פעולות אפשריות (סך משחקים כפול 3)' : 'Possible Actions (Total Games × 3)'}:</strong> {selectedPerformanceDetails.data.details.totalGames * 3}</p>
+                      </div>
+                      <p className="pt-2 border-t border-slate-200 mt-2">
+                        <em>{language === Language.HE ? 'אחוז איסוף מחשב את סך הפעמים בהם הקבוצה אספה מהרצפה, איסוף ידני או באוטונומי, חלקי סך ההזדמנויות האפשריות (3 לכל משחק).' : 'Collection percentage calculates the total times the team successfully collected from the floor, manually or via auto intake, divided by total possible opportunities (3 per game).'}</em>
+                      </p>
+                    </>
+                  )}
+                  {selectedPerformanceDetails.category === 'scoring' && (
+                    <>
+                      <p><strong>{language === Language.HE ? 'סה״כ פגיעות' : 'Total Hits'}:</strong> {selectedPerformanceDetails.data.details.totalHits}</p>
+                      <p><strong>{language === Language.HE ? 'סך משחקים' : 'Total Games'}:</strong> {selectedPerformanceDetails.data.details.totalGames}</p>
+                      <p className="pt-2 border-t border-slate-200 mt-2">
+                        <em>{language === Language.HE ? 'ממוצע פגיעות למשחק (סה״כ פגיעות חלקי סך משחקים).' : 'Average hits per game (Total hits divided by total games).'}</em>
+                      </p>
+                    </>
+                  )}
+                  {selectedPerformanceDetails.category === 'fouls' && (
+                    <>
+                      <p><strong>{language === Language.HE ? 'סה״כ עבירות' : 'Total Fouls'}:</strong> {selectedPerformanceDetails.data.details.fouls}</p>
+                      <p><strong>{language === Language.HE ? 'סך משחקים' : 'Total Games'}:</strong> {selectedPerformanceDetails.data.details.totalGames}</p>
+                      <p className="pt-2 border-t border-slate-200 mt-2">
+                        <em>{language === Language.HE ? 'ממוצע עבירות למשחק.' : 'Average fouls per game.'}</em>
+                      </p>
+                    </>
+                  )}
+                  {selectedPerformanceDetails.category === 'behavior' && (
+                    <>
+                      <p><strong>{language === Language.HE ? 'מודעות למגרש' : 'Field Awareness'}:</strong> {selectedPerformanceDetails.data.details.fieldAwarenessCount} / {selectedPerformanceDetails.data.details.totalGames}</p>
+                      <p><strong>{language === Language.HE ? 'הצלחה כללית' : 'Overall Success'}:</strong> {selectedPerformanceDetails.data.details.overallSuccessCount} / {selectedPerformanceDetails.data.details.totalGames}</p>
+                      <p><strong>{language === Language.HE ? 'פעולה עקבית/ללא בלבול' : 'Consistent Action/Not Confused'}:</strong> {selectedPerformanceDetails.data.details.notConfusedCount} / {selectedPerformanceDetails.data.details.totalGames}</p>
+                      <div className="pt-2 border-t border-slate-200 mt-2">
+                        <p><strong>{language === Language.HE ? 'סה״כ נקודות התנהגות' : 'Total Behavior Points'}:</strong> {selectedPerformanceDetails.data.details.behaviorScore}</p>
+                        <p><strong>{language === Language.HE ? 'נקודות אפשריות (סך משחקים כפול 3)' : 'Possible Points (Total Games × 3)'}:</strong> {selectedPerformanceDetails.data.details.totalGames * 3}</p>
+                      </div>
+                      <p className="pt-2 border-t border-slate-200 mt-2">
+                        <em>{language === Language.HE ? 'אחוז התנהגות מחשב את סך הפעמים בו הקבוצה הפגינה מודעות למגרש, הצלחה כללית, ופעולה ללא בלבול, חלקי סך ההזדמנויות האפשריות (3 לכל משחק).' : 'Behavior percentage calculates the total times the team showed field awareness, overall success, and steady action, divided by total possible opportunities (3 per game).'}</em>
+                      </p>
+                    </>
+                  )}
+                  {selectedPerformanceDetails.category === 'autonomous' && (
+                    <>
+                      <p><strong>{language === Language.HE ? 'פגיעות באוטונומי' : 'Auto Hits'}:</strong> {selectedPerformanceDetails.data.details.autoHits}</p>
+                      <p><strong>{language === Language.HE ? 'סך משחקים' : 'Total Games'}:</strong> {selectedPerformanceDetails.data.details.totalGames}</p>
+                      <p className="pt-2 border-t border-slate-200 mt-2">
+                        <em>{language === Language.HE ? 'ממוצע פגיעות באוטונומי למשחק.' : 'Average autonomous hits per game.'}</em>
+                      </p>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-4 border-t-2 border-slate-100 bg-slate-50">
+              <button 
+                onClick={() => setSelectedPerformanceDetails(null)}
+                className="w-full bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-3 rounded-xl transition-colors"
+              >
+                {language === Language.HE ? 'סגור' : 'Close'}
+              </button>
             </div>
           </div>
         </div>

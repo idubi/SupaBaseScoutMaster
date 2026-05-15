@@ -66,6 +66,15 @@ export function calculateTeamGrade(data: TeamAggregatedData): TeamGradeResult {
 
   return {
     grade: Number(grade.toFixed(2)),
-    ratio: Number(ratio.toFixed(2))
+    ratio: Number(ratio.toFixed(2)),
+    gradeDetails: {
+      avgAutoHit,
+      avgTeleopHit,
+      avgAutoMiss,
+      avgTeleopMiss,
+      avgFouls,
+      avgParking,
+      weights: GRADING_WEIGHTS
+    }
   };
 }

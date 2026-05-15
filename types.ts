@@ -140,6 +140,22 @@ export interface TeamAggregatedData {
 export interface TeamGradeResult {
   grade: number;
   ratio: number;
+  gradeDetails?: {
+    avgAutoHit: number;
+    avgTeleopHit: number;
+    avgAutoMiss: number;
+    avgTeleopMiss: number;
+    avgFouls: number;
+    avgParking: number;
+    weights: {
+      POINTS_AUTO_HIT: number;
+      POINTS_TELEOP_HIT: number;
+      POINTS_PARKING: number;
+      POINTS_AUTO_MISS: number;
+      POINTS_TELEOP_MISS: number;
+      POINTS_FAUL: number;
+    };
+  };
 }
 
 export interface ProcessLog {
