@@ -150,10 +150,10 @@ const App: React.FC = () => {
       fetchSettings();
       fetchTeamsGrades();
 
-      // Poll settings for lastConsolidationTime and status every 30 seconds
+      // Poll settings for lastConsolidationTime and status every 5 seconds (or more frequently)
       const pollInterval = setInterval(() => {
         fetchSettings();
-      }, 30000);
+      }, 5000); 
 
       return () => clearInterval(pollInterval);
     }
@@ -787,8 +787,12 @@ const App: React.FC = () => {
                   <input 
                     type="number" 
                     value={settings.calcIntervalSeconds}
-                    readOnly
-                    className="w-14 bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 text-center font-bold text-slate-400 text-xs shadow-sm cursor-not-allowed"
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value) || 0;
+                      setSettings(prev => ({ ...prev, calcIntervalSeconds: val }));
+                    }}
+                    onBlur={() => handleUpdateSettings({})}
+                    className="w-14 bg-white border border-slate-200 rounded-lg px-2 py-1 text-center font-bold text-slate-900 text-xs shadow-sm focus:ring-2 focus:ring-purple-500 transition-all"
                   />
                   <span className="text-[10px] font-black text-slate-400 uppercase">{isRTL ? 'שניות' : 'Sec'}</span>
                 </div>

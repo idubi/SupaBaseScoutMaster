@@ -12,7 +12,7 @@ import {
   Legend, 
   ResponsiveContainer 
 } from 'recharts';
-import { Search, Table as TableIcon, BarChart3, LineChart as LineChartIcon, ArrowLeft, ChevronDown, Check, X, Trophy, RefreshCw, ScrollText, History, AlertCircle, Clock, Trash2, LayoutGrid } from 'lucide-react';
+import { Search, Table as TableIcon, BarChart3, LineChart as LineChartIcon, ArrowLeft, ChevronDown, Check, X, Trophy, RefreshCw, ScrollText, History, AlertCircle, Clock, LayoutGrid } from 'lucide-react';
 import { Language, SpreadsheetRow, TeamAggregatedData, ProcessLog } from '../../types';
 import { AdminTranslation_EN, AdminTranslation_HE } from '../translations';
 import { calculateTeamGrade } from '../../lib/gradingEngine';
@@ -58,6 +58,29 @@ const AdminView: React.FC<AdminViewProps> = ({
   const [compareSubTab, setCompareSubTab] = useState<'ranking' | 'performance'>('ranking');
   const [selectedMatch, setSelectedMatch] = useState<string>('');
   const [isMatchDropdownOpen, setIsMatchDropdownOpen] = useState(false);
+  const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
+
+  // Countdown timer for automatic calculation
+  useEffect(() => {
+    if (!autoCalcActive || !lastConsolidationTime || !autoCalcSeconds) {
+      setSecondsRemaining(null);
+      return;
+    }
+
+    const updateCountdown = () => {
+      const last = new Date(lastConsolidationTime).getTime();
+      const now = new Date().getTime();
+      const elapsed = Math.floor((now - last) / 1000);
+      const remaining = Math.max(0, autoCalcSeconds - elapsed);
+      setSecondsRemaining(remaining);
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+
+    return () => clearInterval(interval);
+  }, [autoCalcActive, lastConsolidationTime, autoCalcSeconds]);
+
   const [viewMode, setViewMode] = useState<'graph' | 'table'>('graph');
   const [logs, setLogs] = useState<ProcessLog[]>([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
@@ -83,44 +106,6 @@ const AdminView: React.FC<AdminViewProps> = ({
       setDiagResult({ status: 'error', error: String(e) });
     } finally {
       setIsDiagnosing(false);
-    }
-  };
-
-  const handleClearLogs = async () => {
-    console.log("handleClearLogs called");
-    const confirmMsg = isRTL ? 'האם בטוח למחוק את כל היומנים?' : 'Clear all logs?';
-    if (!window.confirm(confirmMsg)) {
-      console.log("Clear logs cancelled by user");
-      return;
-    }
-    
-    setIsClearing(true);
-    console.log("Starting clear logs operation...");
-    
-    try {
-      console.log("Fetching /api/admin/clear-logs-all...");
-      const res = await fetch('/api/admin/clear-logs-all', { 
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      
-      console.log("Fetch response received. Status:", res.status);
-      
-      if (res.ok) {
-        const data = await res.json();
-        console.log("API Success. New logs count:", data.logs?.length);
-        setLogs(data.logs || []);
-        alert(isRTL ? 'היומנים נוקו בהצלחה (זיכרון ואקסל)' : 'Logs cleared successfully (Memory & Excel)');
-      } else {
-        const errText = await res.text();
-        console.error("API failed. Status:", res.status, "Body:", errText);
-        alert(`${isRTL ? 'שגיאה במחיקת היומנים' : 'Failed to clear logs'} (${res.status})`);
-      }
-    } catch (e) {
-      console.error("Network error during clear logs:", e);
-      alert(isRTL ? 'שגיאה בתקשורת' : 'Connection error');
-    } finally {
-      setIsClearing(false);
     }
   };
 
@@ -1694,6 +1679,12 @@ const AdminView: React.FC<AdminViewProps> = ({
                       ? (autoCalcActive ? 'חישוב אוטומטי פעיל' : 'חישוב אוטומטי כבוי') 
                       : (autoCalcActive ? 'Auto-Calc Active' : 'Auto-Calc Inactive')}
                   </span>
+                  {autoCalcActive && secondsRemaining !== null && (
+                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100/50 px-2 py-0.5 rounded-lg flex items-center gap-1">
+                      <Clock size={10} />
+                      {isRTL ? `ריצה הבאה: ${secondsRemaining} ש'` : `Next Run: ${secondsRemaining}s`}
+                    </span>
+                  )}
                   <button 
                     onClick={() => onUpdateSettings({ isAutoCalcActive: !autoCalcActive })}
                     className="ml-2 hover:underline font-bold text-[10px] text-slate-600"
@@ -1733,14 +1724,6 @@ const AdminView: React.FC<AdminViewProps> = ({
                   {isRTL ? 'חשב עכשיו' : 'Run Now'}
                 </button>
               </div>
-              <button 
-                onClick={handleClearLogs}
-                disabled={isClearing}
-                className="flex items-center gap-2 px-3 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 transition-colors disabled:opacity-50 disabled:hover:bg-slate-900"
-              >
-                <Trash2 size={12} />
-                {isRTL ? 'נקה יומן' : 'Clear Logs'}
-              </button>
             </div>
 
             {diagResult && (

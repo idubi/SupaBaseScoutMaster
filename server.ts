@@ -421,10 +421,11 @@ async function startServer() {
 
   // API to get system settings
   app.get("/api/settings", async (req, res) => {
-    // Sync trigger if not synced
-    if (!settingsSyncedWithSheet && !pendingSettingsSync) {
-      console.log(`[Settings] Sync triggered for Supabase`);
-      refreshSettingsFromSupabase().catch(console.error);
+    // Always refresh from Supabase to ensure real-time data for the admin
+    try {
+      await refreshSettingsFromSupabase();
+    } catch (err) {
+      console.error("[Settings] GET Refresh failed:", err);
     }
 
     res.json({
@@ -436,16 +437,17 @@ async function startServer() {
 
   // API to update system settings
   app.post("/api/settings", async (req, res) => {
-    const { isAutoCalcActive, lastConsolidationTime } = req.body;
+    const { isAutoCalcActive, lastConsolidationTime, calcIntervalSeconds } = req.body;
     
     // Update local cache
     systemSettings = {
       ...systemSettings,
       isAutoCalcActive: isAutoCalcActive === undefined ? systemSettings.isAutoCalcActive : !!isAutoCalcActive,
-      lastConsolidationTime: lastConsolidationTime === undefined ? systemSettings.lastConsolidationTime : lastConsolidationTime
+      lastConsolidationTime: lastConsolidationTime === undefined ? systemSettings.lastConsolidationTime : lastConsolidationTime,
+      calcIntervalSeconds: calcIntervalSeconds === undefined ? systemSettings.calcIntervalSeconds : Number(calcIntervalSeconds)
     };
 
-    console.log(`[Settings] Updated by Client. Active=${systemSettings.isAutoCalcActive}`);
+    console.log(`[Settings] Updated by Client. Active=${systemSettings.isAutoCalcActive}, Interval=${systemSettings.calcIntervalSeconds}`);
     
     await persistSettingsToSupabase();
 
