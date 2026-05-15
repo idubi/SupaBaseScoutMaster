@@ -103,10 +103,16 @@ const App: React.FC = () => {
         console.error("Failed to check system status", e);
       }
     };
+    
+    // Check status once on mount
     checkStatus();
-    const interval = setInterval(checkStatus, 10000); // Check every 10s
-    return () => clearInterval(interval);
-  }, []);
+
+    // Only poll status if we are in Admin or Management views
+    if (phase === ScoutingPhase.MANAGEMENT || phase === ScoutingPhase.ADMIN) {
+      const interval = setInterval(checkStatus, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [phase]);
 
   const fetchTeamsGrades = React.useCallback(async () => {
     setIsLoadingGrades(true);
@@ -176,26 +182,47 @@ const App: React.FC = () => {
 
   const handleSeedData = async () => {
     const confirmMsg = language === Language.HE 
-      ? 'פעולה זו תיצור 18 רשומות דוגמה (6 לכל קבוצה: 15811, 15928, 25041) ותסנכרן אותן לגוגל שיטס. להמשיך?'
-      : 'This will generate 18 test records (6 for each team: 15811, 15928, 25041) and sync them to Google Sheets. Continue?';
+      ? 'פעולה זו תיצור נתוני דוגמה עבור 3 קבוצות ב-6 מקצים (בכפוף למגבלות) ותסנכרן אותן. להמשיך?'
+      : 'This will generate test data for 3 teams across 6 matches (subject to restrictions) and sync them. Continue?';
     
     if (!window.confirm(confirmMsg)) return;
     
     setSeedStatus('loading');
     setSeedError(null);
-    const teams = ['15811', '15928', '25041'];
-    const scouterNames = ['TestScouter1', 'TestScouter2', 'TestScouter3'];
 
     try {
+      // Step 1: Reset system data (clears reports, logs, grades but keeps settings and users)
+      const resetResp = await fetch('/api/admin/reset-system', { method: 'POST' });
+      if (!resetResp.ok) throw new Error('Failed to reset system data');
+
+      const teams = ['15811', '15928', '25041'];
+      const scouterNames = ['TestScouter1', 'TestScouter2', 'TestScouter3'];
+
+      // Get fresh history (should be empty now)
+      let currentHistory: SpreadsheetRow[] = [];
+
+      let seededCount = 0;
+      let skippedCount = 0;
+
       for (const team of teams) {
         for (let i = 1; i <= 6; i++) {
+          const matchNum = i.toString();
+          
+          // Check restrictions
+          const restriction = checkScoutingRestrictions(currentHistory, team, matchNum, 'TestSeed');
+          if (restriction) {
+            console.log(`Skipping seeding for Team ${team} Match ${matchNum}: ${restriction}`);
+            skippedCount++;
+            continue;
+          }
+
           const row = {
             sessionId: `seed-${Math.random().toString(36).substr(2, 9)}`,
             timestamp: new Date().toLocaleString(),
             sessionStartTime: new Date().toISOString(),
             sessionEndTime: new Date().toISOString(),
             name: scouterNames[Math.floor(Math.random() * scouterNames.length)],
-            matchNumber: i.toString(),
+            matchNumber: matchNum,
             teamScouted: team,
             role: 'scouter',
             isAutoLeave: Math.random() > 0.3,
@@ -237,13 +264,24 @@ const App: React.FC = () => {
             body: JSON.stringify(row)
           });
           if (!resp.ok) throw new Error(`HTTP error! status: ${resp.status}`);
+          
+          // Update local simulated history so next iteration respects it
+          currentHistory.push({
+            ...row,
+            scouterName: row.name // for history mapping
+          } as any);
+
+          seededCount++;
           await new Promise(r => setTimeout(r, 200));
         }
       }
+
+      console.log(`Seeding complete: ${seededCount} created, ${skippedCount} skipped.`);
       setSeedStatus('success');
       setTimeout(() => setSeedStatus('idle'), 3000);
       fetchHistory();
       fetchTeamsGrades();
+      fetchSettings();
     } catch (error) {
       console.error('Seeding failed:', error);
       setSeedError(error instanceof Error ? error.message : String(error));
@@ -298,29 +336,48 @@ const App: React.FC = () => {
     setPhase(ScoutingPhase.AUTH);
   };
 
-  const checkDuplicate = (historyData: SpreadsheetRow[], team: string, match: string, name: string) => {
+  const checkScoutingRestrictions = (historyData: SpreadsheetRow[], team: string, match: string, scouterName: string) => {
     const cleanTeam = String(team || '').trim();
     const cleanMatch = String(match || '').trim();
-    const cleanName = String(name || '').trim().toLowerCase();
+    const cleanName = String(scouterName || '').trim().toLowerCase();
 
-    return historyData.some(row => {
+    // 1. Check if team already exists for this match (Team unique per match)
+    const teamAlreadyScouted = historyData.some(row => {
+      const rowTeam = String(row.teamScouted || '').trim();
+      const rowMatch = String(row.matchNumber || '').trim();
+      const rowRecordType = row['recordType'];
+      return rowRecordType === 'MATCH_COMPLETE' && rowTeam === cleanTeam && rowMatch === cleanMatch;
+    });
+
+    if (teamAlreadyScouted) return 'TEAM_EXISTS';
+
+    // 2. Check if this specific scouter already scouted this match/team (for backward compatibility/extra safety)
+    const scouterAlreadyScouted = historyData.some(row => {
       const rowTeam = String(row.teamScouted || '').trim();
       const rowMatch = String(row.matchNumber || '').trim();
       const rowName = String(row.name || '').trim().toLowerCase();
       const rowRecordType = row['recordType'];
-      
-      // Only consider it a duplicate if it's a MATCH_COMPLETE record
-      if (rowRecordType !== 'MATCH_COMPLETE') return false;
-
-      return rowTeam === cleanTeam && 
-             rowMatch === cleanMatch && 
-             rowName === cleanName;
+      return rowRecordType === 'MATCH_COMPLETE' && rowTeam === cleanTeam && rowMatch === cleanMatch && rowName === cleanName;
     });
+    
+    if (scouterAlreadyScouted) return 'DUPLICATE_REPORT';
+
+    // 3. Check how many unique teams are in this match (Max 4 teams per match)
+    const matchTeams = new Set(
+      historyData
+        .filter(row => row['recordType'] === 'MATCH_COMPLETE' && String(row.matchNumber || '').trim() === cleanMatch)
+        .map(row => String(row.teamScouted || '').trim())
+    );
+
+    if (matchTeams.size >= 4 && !matchTeams.has(cleanTeam)) {
+      return 'MATCH_FULL';
+    }
+
+    return null;
   };
 
-  React.useEffect(() => {
-    // History and Settings will be fetched only when entering Management or Admin views
-  }, []);
+  // Removed initial fetchHistory on mount to comply with "check only on events" request.
+  // History is now fetched explicitly during auth submit or summary submit.
 
   const handleLogout = () => {
     handleDeleteGame();
@@ -482,26 +539,80 @@ const App: React.FC = () => {
         fetchHistory();
       }
     } else {
-      if (isUpdateMode) {
-        const updatedUser = {
-          ...userData,
-          sessionId: user?.sessionId || generateGUID(),
-          sessionStartTime: user?.sessionStartTime || Date.now()
-        };
-        setUser(updatedUser);
-        
-        // Update autoData and teleopData to match new metadata
-        if (autoData) {
-          setAutoData({
-            ...autoData,
-            matchNumber: updatedUser.matchNumber,
-            teamScouted: updatedUser.teamScouted
-          });
+      // Fetch fresh history explicitly on auth event
+      setIsFetchingHistory(true);
+      let latestHistory = history;
+      try {
+        const cacheBuster = Date.now();
+        const response = await fetch(`/api/history?sheetName=${SHEET_NAME}&_=${cacheBuster}`);
+        if (response.ok) {
+          latestHistory = await response.json();
+          setHistory(latestHistory);
         }
-        
-        setIsUpdateMode(false);
-        setPhase(ScoutingPhase.SUMMARY);
+      } catch (e) {
+        console.error("Failed to fetch history during auth submit", e);
+      } finally {
+        setIsFetchingHistory(false);
+      }
+
+      // Check for restrictions for the NEW values provided
+      // If we are in update mode and the team/match are the same, we ignore the restriction (it's ourselves)
+      const isActuallyTheSameSession = isUpdateMode && user && 
+                                       String(userData.teamScouted).trim() === String(user.teamScouted).trim() && 
+                                       String(userData.matchNumber).trim() === String(user.matchNumber).trim();
+
+      const restriction = checkScoutingRestrictions(latestHistory, userData.teamScouted, userData.matchNumber, userData.name);
+      
+      if (restriction && !isActuallyTheSameSession) {
+        const authT: any = language === Language.HE ? AuthTranslation_HE : AuthTranslation_EN;
+        if (restriction === 'TEAM_EXISTS') {
+          setAuthError(authT.teamExistsError.replace('{team}', userData.teamScouted).replace('{match}', userData.matchNumber));
+        } else if (restriction === 'MATCH_FULL') {
+          setAuthError(authT.matchLimitError.replace('{match}', userData.matchNumber));
+        } else {
+          setAuthError(authT.duplicateError.replace('{team}', userData.teamScouted).replace('{match}', userData.matchNumber).replace('{name}', userData.name));
+        }
+        return;
+      }
+
+      if (isUpdateMode) {
+        if (isActuallyTheSameSession) {
+          // Just a metadata fix (scouter name, alliance color, etc.) - keep existing data and return to Summary
+          const updatedUser = {
+            ...userData,
+            sessionId: user?.sessionId || generateGUID(),
+            sessionStartTime: user?.sessionStartTime || Date.now()
+          };
+          
+          setUser(updatedUser);
+
+          // Update autoData and teleopData to match new metadata (if they exist)
+          if (autoData) {
+            setAutoData({
+              ...autoData,
+              matchNumber: updatedUser.matchNumber,
+              teamScouted: updatedUser.teamScouted
+            });
+          }
+
+          setIsUpdateMode(false);
+          setPhase(ScoutingPhase.SUMMARY);
+        } else {
+          // They changed team/match. This is now effectively a NEW session.
+          // Drop old data and start from scratch as requested.
+          const sessionStartTime = Date.now();
+          const sessionId = generateGUID();
+          const enrichedUser: User = { ...userData, sessionId, sessionStartTime };
+          
+          setUser(enrichedUser);
+          setAutoData(null);
+          setTeleopData(null);
+          setIsUpdateMode(false);
+          setPhase(ScoutingPhase.AUTONOMOUS);
+          syncScoutData('SESSION_START', null, null, enrichedUser);
+        }
       } else {
+        // Normal new session flow
         const sessionStartTime = Date.now();
         const sessionId = generateGUID();
         const enrichedUser: User = { ...userData, sessionId, sessionStartTime };
@@ -571,6 +682,14 @@ const App: React.FC = () => {
   const renderPhase = () => {
     switch (phase) {
       case ScoutingPhase.AUTH: 
+        const isRestrictionError = authError && (
+          authError.includes('already exists') || 
+          authError.includes('already has a report') || 
+          authError.includes('already has 4 teams') ||
+          authError.includes('כבר קיים דיווח') ||
+          authError.includes('יש כבר 4 קבוצות')
+        );
+
         return <AuthBinding 
           key={resetKey}
           onSubmit={handleAuthSubmit} 
@@ -582,6 +701,7 @@ const App: React.FC = () => {
           initialAllianceColor={isUpdateMode ? user?.allianceColor : 'Red'}
           history={history}
           externalError={authError}
+          isRestrictionError={!!isRestrictionError}
           onDeleteGame={handleDeleteGame}
           onUpdateMetadata={handleUpdateMetadata}
           isUpdateMode={isUpdateMode}
@@ -654,12 +774,17 @@ const App: React.FC = () => {
                 const match = autoData?.matchNumber || user?.matchNumber || '';
                 const name = user?.name || '';
 
-                if (checkDuplicate(latestHistory, team, match, name)) {
+                const restriction = checkScoutingRestrictions(latestHistory, team, match, name);
+                if (restriction) {
                   const authT: any = language === Language.HE ? AuthTranslation_HE : AuthTranslation_EN;
-                  const errorMsg = authT.duplicateError
-                    .replace('{team}', team)
-                    .replace('{match}', match)
-                    .replace('{name}', name);
+                  let errorMsg = '';
+                  if (restriction === 'TEAM_EXISTS') {
+                    errorMsg = authT.teamExistsError.replace('{team}', team).replace('{match}', match);
+                  } else if (restriction === 'MATCH_FULL') {
+                    errorMsg = authT.matchLimitError.replace('{match}', match);
+                  } else {
+                    errorMsg = authT.duplicateError.replace('{team}', team).replace('{match}', match).replace('{name}', name);
+                  }
                   setSummaryError(errorMsg);
                   return;
                 }
@@ -731,30 +856,7 @@ const App: React.FC = () => {
               <p className="text-slate-500 font-medium">System initialization and data management</p>
             </div>
  
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 w-full mt-4 items-stretch">
-              {/* Initialize Data Sheet Card */}
-              <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 flex flex-col items-center text-center h-full">
-                <div className="w-12 h-12 bg-rose-100 rounded-2xl flex items-center justify-center text-rose-600 mb-4">
-                  <RefreshCw size={24} />
-                </div>
-                <h3 className="text-lg font-bold text-slate-800 mb-2">Initialize Data Sheet</h3>
-                <p className="text-xs text-slate-500 mb-6 leading-relaxed">
-                  This will archive current <b>{SHEET_NAME}</b> and create a fresh database.
-                </p>
-                {initStatus === 'error' && initError && (
-                  <p className="text-[10px] text-red-500 font-bold mb-4 line-clamp-2">{initError}</p>
-                )}
-                <button 
-                  onClick={handleInitSheet}
-                  disabled={initStatus === 'loading'}
-                  className={`w-full py-3 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all flex items-center justify-center gap-2 mt-auto ${getButtonClass(initStatus)}`}
-                >
-                  {initStatus === 'loading' ? (
-                    <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Initializing...</>
-                  ) : 'Clean Database'}
-                </button>
-              </div>
-
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full mt-4 items-stretch">
               {/* Seed Data Card */}
               <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 flex flex-col items-center text-center h-full">
                 <div className="w-12 h-12 bg-indigo-100 rounded-2xl flex items-center justify-center text-indigo-600 mb-4">

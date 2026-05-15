@@ -14,6 +14,10 @@ interface AuthBindingProps {
   onDeleteGame?: () => void;
   onUpdateMetadata?: () => void;
   isUpdateMode?: boolean;
+  isRestrictionError?: boolean;
+  initialTeamNumber?: string;
+  initialRole?: 'scouter' | 'admin';
+  initialAllianceColor?: 'Red' | 'Blue';
 }
 
 const AuthBinding: React.FC<AuthBindingProps> = ({ 
@@ -28,7 +32,8 @@ const AuthBinding: React.FC<AuthBindingProps> = ({
   externalError = null,
   onDeleteGame,
   onUpdateMetadata,
-  isUpdateMode = false
+  isUpdateMode = false,
+  isRestrictionError = false
 }) => {
   const [name, setName] = useState(initialName);
   const [teamScouted, setTeamScouted] = useState(initialTeamNumber);
@@ -80,6 +85,7 @@ const AuthBinding: React.FC<AuthBindingProps> = ({
       onUpdateMetadata={onUpdateMetadata}
       error={displayError}
       isUpdateMode={isUpdateMode}
+      isRestrictionError={isRestrictionError}
     />
   );
 };

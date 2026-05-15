@@ -129,6 +129,31 @@ async function startServer() {
     }
   });
 
+  app.post("/api/admin/reset-system", async (req, res) => {
+    try {
+      console.log("[API] Resetting system data for seed...");
+      
+      // 1. Clear reports
+      await supabase.from('scoutsmaster_ongoing').delete().neq('id', -1);
+      
+      // 2. Clear logs
+      await supabase.from('job_execution_logs').delete().neq('id', '_');
+      processLogs = [];
+      
+      // 3. Clear grades
+      await supabase.from('teams_grades').delete().neq('TeamNumber', '_');
+      
+      // 4. Reset lastConsolidationTime in settings
+      systemSettings.lastConsolidationTime = null;
+      await persistSettingsToSupabase();
+      
+      res.json({ success: true, message: "System data reset successfully" });
+    } catch (err: any) {
+      console.error("[Reset] Error:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.get("/api/process-logs", (req, res) => {
     res.json(processLogs);
   });

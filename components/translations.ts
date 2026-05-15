@@ -32,8 +32,12 @@ export const AuthTranslation_EN = {
   red: "Red",
   blue: "Blue",
   duplicateError: "Data already exists for {name} on Team {team} in Match {match}",
+  matchLimitError: "Match {match} already has 4 teams. Cannot add more.",
+  teamExistsError: "Team {team} already has a report for Match {match}.",
   updateTitle: "Update Mission",
-  updateBegin: "Update Session"
+  updateBegin: "Update Session",
+  cancelAndReturn: "Cancel & Return",
+  deleteGame: "Delete Game"
 };
 
 export const AuthTranslation_HE = {
@@ -54,8 +58,12 @@ export const AuthTranslation_HE = {
   red: "אדום",
   blue: "כחול",
   duplicateError: "כבר קיים דיווח עבור {name} בקבוצה {team} במקצה {match}",
+  matchLimitError: "למקצה {match} יש כבר 4 קבוצות. לא ניתן להוסיף עוד.",
+  teamExistsError: "לקבוצה {team} כבר קיים דיווח למקצה {match}.",
   updateTitle: "עדכון משימה",
-  updateBegin: "עדכון משחק"
+  updateBegin: "עדכון משחק",
+  cancelAndReturn: "ביטול וחזרה",
+  deleteGame: "מחיקת משחק"
 };
 
 export const AutoTranslation_EN = {

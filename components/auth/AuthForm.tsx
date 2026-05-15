@@ -20,6 +20,7 @@ interface AuthFormProps {
   language: Language;
   error?: string | null;
   isUpdateMode?: boolean;
+  isRestrictionError?: boolean;
 }
 
 const AuthForm: React.FC<AuthFormProps> = (props) => {
@@ -36,33 +37,45 @@ const AuthForm: React.FC<AuthFormProps> = (props) => {
       </div>
 
       {props.error && !props.isUpdateMode && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl flex flex-row items-center justify-between gap-4" dir="ltr">
+        <div className={`mb-6 p-4 ${props.isRestrictionError ? 'bg-red-600' : 'bg-red-50'} border ${props.isRestrictionError ? 'border-red-700' : 'border-red-200'} rounded-2xl flex flex-col gap-4 text-center items-center`} dir="ltr">
           <div className="flex flex-row items-center gap-3">
-            <AlertCircle className="text-red-500 shrink-0" size={20} />
-            <p className={`text-red-600 font-bold ${isRTL ? 'text-right text-sm' : 'text-left text-xs'}`} dir={isRTL ? 'rtl' : 'ltr'}>
+            <AlertCircle className={`${props.isRestrictionError ? 'text-white' : 'text-red-500'} shrink-0`} size={20} />
+            <p className={`${props.isRestrictionError ? 'text-white font-black uppercase tracking-tight' : 'text-red-600 font-bold'} ${isRTL ? 'text-right text-sm' : 'text-left text-xs'}`} dir={isRTL ? 'rtl' : 'ltr'}>
               {props.error}
             </p>
           </div>
-          <div className="flex flex-row gap-2 shrink-0">
-            <button 
-              type="button"
-              onClick={props.onUpdateMetadata}
-              className="px-3 py-2 border border-red-200 rounded-xl text-[10px] font-black text-red-600 hover:bg-red-100 transition-colors uppercase tracking-tighter"
-            >
-              UPDATE GAME METADATA
-            </button>
-            <button 
-              type="button"
-              onClick={props.onDeleteGame}
-              className="px-3 py-2 border border-red-200 rounded-xl text-[10px] font-black text-red-600 hover:bg-red-100 transition-colors uppercase tracking-tighter"
-            >
-              DELETE GAME
-            </button>
+          <div className="flex flex-row gap-2 w-full">
+            {props.isRestrictionError ? (
+              <button 
+                type="button"
+                onClick={props.onDeleteGame}
+                className="w-full px-4 py-4 bg-white text-red-600 rounded-xl text-xs font-black hover:bg-red-50 transition-all uppercase tracking-widest shadow-lg active:scale-[0.98]"
+              >
+                {t.cancelAndReturn}
+              </button>
+            ) : (
+              <>
+                <button 
+                  type="button"
+                  onClick={props.onUpdateMetadata}
+                  className="flex-1 px-3 py-2 border border-red-200 rounded-xl text-[10px] font-black text-red-600 hover:bg-red-100 transition-colors uppercase tracking-tighter"
+                >
+                  {t.updateTitle}
+                </button>
+                <button 
+                  type="button"
+                  onClick={props.onDeleteGame}
+                  className="flex-1 px-3 py-2 border border-red-200 rounded-xl text-[10px] font-black text-red-600 hover:bg-red-100 transition-colors uppercase tracking-tighter"
+                >
+                  {t.deleteGame}
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
 
-      <form onSubmit={props.onSubmit} className="space-y-6">
+      <form onSubmit={props.onSubmit} className={`space-y-6 ${props.isRestrictionError ? 'opacity-40 pointer-events-none' : ''}`}>
         <div className="space-y-4">
           <div className="relative group">
             <Hash className={`absolute ${isRTL ? 'right-5' : 'left-5'} top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-500 transition-colors`} size={20} />
