@@ -280,7 +280,32 @@ const AdminView: React.FC<AdminViewProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Track unique teams fetched from server
+  const [serverUniqueTeams, setServerUniqueTeams] = useState<string[]>([]);
+  
+  // Fetch distinct teams from API on mount
+  useEffect(() => {
+    const fetchTeams = async () => {
+      try {
+        const response = await fetch('/api/teams');
+        if (response.ok) {
+          const data = await response.json();
+          if (Array.isArray(data)) {
+            setServerUniqueTeams(data);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch distinct teams:", err);
+      }
+    };
+    fetchTeams();
+  }, []);
+
   const uniqueTeams = useMemo(() => {
+    if (serverUniqueTeams.length > 0) {
+      return serverUniqueTeams;
+    }
+
     const historyTeams = history
       .map(row => row.teamScouted?.toString().trim())
       .filter((team): team is string => !!team && team !== '');
@@ -297,7 +322,7 @@ const AdminView: React.FC<AdminViewProps> = ({
       if (isNaN(numA) || isNaN(numB)) return a.localeCompare(b);
       return numA - numB;
     });
-  }, [history, teamsGrades]);
+  }, [history, teamsGrades, serverUniqueTeams]);
 
   // Auto-select all teams for comparison by default when uniqueTeams is populated
   useEffect(() => {
@@ -1671,7 +1696,7 @@ const AdminView: React.FC<AdminViewProps> = ({
                                 <tbody>
                                   {/* Data Rows */}
                                   {[
-                                    { label: isRTL ? 'עזיבה באוטונומי %' : 'Leave %', type: 'percentage' },
+                                    { label: isRTL ? 'עזיבה באוטונומי' : 'Auto Leave', type: 'auto_leave' },
                                     { label: t.scoringAuto, type: 'auto_scoring' },
                                     { label: t.generalHits, type: 'general_hits' },
                                     { label: t.fouls, type: 'fouls' },
@@ -1685,18 +1710,17 @@ const AdminView: React.FC<AdminViewProps> = ({
                                         const alliance = row.allianceColor || 'Red';
                                         const bgColor = alliance === 'Red' ? 'bg-red-50/20' : 'bg-blue-50/20';
                                         
-                                        const CheckIcon = ({ checked, label }: { checked: boolean, label: string }) => (
+                                        const CheckIcon = ({ checked, label }: { checked: boolean, label?: string }) => (
                                           <div className="flex items-center gap-1">
                                             <div className={`w-3 h-3 border border-black flex items-center justify-center ${checked ? 'bg-black' : 'bg-white'}`}>
-                                              {checked && <div className="w-1.5 h-1.5 bg-white" />}
                                             </div>
-                                            <span className="text-[9px] font-bold whitespace-nowrap">{label}</span>
+                                            {label && <span className="text-[9px] font-bold whitespace-nowrap">{label}</span>}
                                           </div>
                                         );
 
                                         let displayValue: React.ReactNode = '-';
-                                        if (rowDef.type === 'percentage') {
-                                          displayValue = row.isAutoLeave === true ? '100%' : '0%';
+                                        if (rowDef.type === 'auto_leave') {
+                                          displayValue = <div className="flex justify-center"><CheckIcon checked={row.isAutoLeave === true} /></div>;
                                         } else if (rowDef.type === 'auto_scoring') {
                                           displayValue = row.autoBallHit || '0';
                                         } else if (rowDef.type === 'general_hits') {
@@ -1741,39 +1765,6 @@ const AdminView: React.FC<AdminViewProps> = ({
                                   ))}
                                 </tbody>
                               </table>
-                            </div>
-
-                            {/* Summary Panel */}
-                            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-lg" dir="ltr">
-                              <h3 className="text-white font-black uppercase tracking-widest mb-4">Alliance Performance Summary:</h3>
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div className="space-y-2">
-                                  <h4 className="text-red-500 font-bold uppercase text-sm tracking-widest">Red Alliance</h4>
-                                  <ul className="space-y-1 text-slate-300 text-sm">
-                                    {matchRows
-                                      .filter(r => r.allianceColor === 'Red')
-                                      .map((r, idx) => (
-                                        <li key={`${r.teamScouted}-${idx}`} className="flex items-center gap-2">
-                                          <div className="w-1 h-1 bg-red-500 rounded-full" />
-                                          <span>Team {r.teamScouted}</span>
-                                        </li>
-                                      ))}
-                                  </ul>
-                                </div>
-                                <div className="space-y-2">
-                                  <h4 className="text-blue-500 font-bold uppercase text-sm tracking-widest">Blue Alliance</h4>
-                                  <ul className="space-y-1 text-slate-300 text-sm">
-                                    {matchRows
-                                      .filter(r => r.allianceColor === 'Blue')
-                                      .map((r, idx) => (
-                                        <li key={`${r.teamScouted}-${idx}`} className="flex items-center gap-2">
-                                          <div className="w-1 h-1 bg-blue-500 rounded-full" />
-                                          <span>Team {r.teamScouted}</span>
-                                        </li>
-                                      ))}
-                                  </ul>
-                                </div>
-                              </div>
                             </div>
                           </>
                         );
