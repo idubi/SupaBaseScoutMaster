@@ -53,7 +53,7 @@ function generateData(team: string, match: number, position: string) {
 
   const row: any = {
     sessionId: 'synthetic-' + Math.random().toString(36).substr(2, 9),
-    timestamp: new Date().toLocaleString(),
+    timestamp: new Date().toISOString(),
     sessionStartTime: new Date().toISOString(),
     sessionEndTime: new Date().toISOString(),
     name: scouterName,

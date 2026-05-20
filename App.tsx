@@ -233,7 +233,7 @@ const App: React.FC = () => {
           
           const row = {
             sessionId: `seed-${Math.random().toString(36).substr(2, 9)}`,
-            timestamp: new Date().toLocaleString(),
+            timestamp: new Date().toISOString(),
             sessionStartTime: new Date().toISOString(),
             sessionEndTime: new Date().toISOString(),
             name: scouterNames[Math.floor(Math.random() * scouterNames.length)],
@@ -458,7 +458,7 @@ const App: React.FC = () => {
 
     const row: Partial<SpreadsheetRow> = {
       sessionId: activeUser.sessionId || '',
-      timestamp: new Date().toLocaleString(),
+      timestamp: new Date().toISOString(),
       sessionStartTime: activeUser.sessionStartTime ? new Date(activeUser.sessionStartTime).toISOString() : '',
       sessionEndTime: recordType === 'MATCH_COMPLETE' ? new Date().toISOString() : '',
       name: activeUser.name,
