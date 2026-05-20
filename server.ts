@@ -436,6 +436,12 @@ async function startServer() {
 
       if (error) throw error;
       
+      // Calculate grade for specific team only on match complete
+      if (rowData.recordType === 'MATCH_COMPLETE' && rowData.teamScouted) {
+        // Run update for just this team
+        await updateTeamsGrades([String(rowData.teamScouted)]);
+      }
+
       res.json({ success: true, data });
     } catch (error: any) {
       console.error("Supabase sync error:", error);
