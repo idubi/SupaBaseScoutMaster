@@ -901,44 +901,6 @@ const App: React.FC = () => {
                 </button>
               </div>
 
-              {/* Auto Calculate Scores Card */}
-              <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 flex flex-col items-center text-center h-full">
-                <div className="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center text-amber-600 mb-4">
-                  <RefreshCw size={24} className={settings.autoCalcStatus === 'running' ? 'animate-spin' : ''} />
-                </div>
-                <h3 className="text-lg font-bold text-slate-800 mb-2">{isRTL ? 'חישוב ציונים אוטומטי' : 'Auto Calculate Scores'}</h3>
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="text-[10px] font-black text-slate-400 uppercase">{isRTL ? 'כל' : 'Every'}</span>
-                  <input 
-                    type="number" 
-                    value={settings.calcIntervalSeconds}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value) || 0;
-                      setSettings(prev => ({ ...prev, calcIntervalSeconds: val }));
-                    }}
-                    onBlur={() => handleUpdateSettings({})}
-                    className="w-14 bg-white border border-slate-200 rounded-lg px-2 py-1 text-center font-bold text-slate-900 text-xs shadow-sm focus:ring-2 focus:ring-purple-500 transition-all"
-                  />
-                  <span className="text-[10px] font-black text-slate-400 uppercase">{isRTL ? 'שניות' : 'Sec'}</span>
-                </div>
-                {settings.autoCalcStatus === 'error' && (
-                  <p className="text-[10px] text-red-500 font-bold mb-4 line-clamp-2">
-                    {isRTL ? `שגיאה רציפה: ${settings.consecutiveFailures}/5` : `Consecutive Errors: ${settings.consecutiveFailures}/5`}
-                  </p>
-                )}
-                <button
-                  onClick={() => handleUpdateSettings({ isAutoCalcActive: !settings.isAutoCalcActive })}
-                  className={`w-full py-3 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all flex items-center justify-center gap-2 mt-auto 
-                    ${!settings.isAutoCalcActive && settings.autoCalcStatus !== 'error' ? 'bg-slate-400 text-white' : 
-                      settings.autoCalcStatus === 'running' ? 'bg-emerald-500 text-white' :
-                      settings.autoCalcStatus === 'error' ? 'bg-red-500 text-white' :
-                      'bg-purple-600 text-white hover:bg-purple-700 shadow-lg'}`}
-                >
-                  <div className={`w-2 h-2 rounded-full ${settings.autoCalcStatus === 'running' ? 'bg-white animate-pulse' : 'bg-white/50'}`} />
-                  {settings.isAutoCalcActive ? (isRTL ? 'פעיל' : 'Active') : (isRTL ? 'לא פעיל' : 'Inactive')}
-                </button>
-              </div>
-
               {/* Consolidate Data Card */}
               <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 flex flex-col items-center text-center h-full">
                 <div className="w-12 h-12 bg-emerald-100 rounded-2xl flex items-center justify-center text-emerald-600 mb-4">
