@@ -28,6 +28,12 @@ npm run test:db
 The application exposes a health check endpoint to monitor database table status in real-time:
 `GET /api/health-check`
 
+## Local Storage Keys
+
+The application uses local storage to maintain session persistence. 
+- `scoutmaster_saved_user`: The saved username of the authenticated user.
+- `scoutmaster_saved_pass`: The saved plaintext password of the authenticated user to automatically persist logins across sessions.
+
 ## Tables Mapping
 - `scoutsmaster_ongoing`: Raw scouting data.
 - `job_execution_logs`: Background process execution history.

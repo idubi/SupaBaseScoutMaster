@@ -489,6 +489,38 @@ async function startServer() {
     }
   });
 
+  app.post("/api/login", async (req, res) => {
+    try {
+      const { name, password } = req.body;
+      if (!name || !password) {
+        return res.status(400).json({ error: "Name and password are required" });
+      }
+
+      const { data, error } = await supabase
+        .from('auth_config')
+        .select('name, role, password')
+        .eq('name', name)
+        .eq('password', password);
+
+      if (error || !data || data.length === 0) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+
+      const roles = data.map(d => (d.role || '').toLowerCase());
+      let finalRole = roles[0];
+      if (roles.includes('admin') && roles.includes('scouter')) {
+        finalRole = 'both';
+      } else if (roles.includes('admin')) {
+        finalRole = 'admin';
+      }
+
+      return res.json({ success: true, role: finalRole });
+    } catch (err: any) {
+      console.error("Login error:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
   // API to get system settings
   app.get("/api/settings", async (req, res) => {
     // Always refresh from Supabase to ensure real-time data for the admin

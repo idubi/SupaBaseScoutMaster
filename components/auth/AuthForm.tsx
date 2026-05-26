@@ -1,10 +1,12 @@
-import React from 'react';
-import { Users, User, Hash, AlertCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { Users, User, Hash, AlertCircle, Lock, Eye, EyeOff } from 'lucide-react';
 import { Language } from '../../types';
 import { AuthTranslation_EN, AuthTranslation_HE } from '../translations';
 
 interface AuthFormProps {
   name: string;
+  password?: string;
+  setPassword?: (v: string) => void;
   teamScouted: string;
   matchNumber: string;
   role: 'scouter' | 'admin';
@@ -15,6 +17,10 @@ interface AuthFormProps {
   setRole: (v: 'scouter' | 'admin') => void;
   setAllianceColor: (v: 'Red' | 'Blue') => void;
   onSubmit: (e: React.FormEvent, mode?: 'investigate' | 'manage') => void;
+  onAuthenticate?: (e: React.MouseEvent) => void;
+  onLogout?: () => void;
+  authenticatedRole?: string | null;
+  authLoading?: boolean;
   onDeleteGame?: () => void;
   onUpdateMetadata?: () => void;
   language: Language;
@@ -24,6 +30,7 @@ interface AuthFormProps {
 }
 
 const AuthForm: React.FC<AuthFormProps> = (props) => {
+  const [showPassword, setShowPassword] = useState(false);
   const t: any = props.language === Language.HE ? AuthTranslation_HE : AuthTranslation_EN;
   const isRTL = props.language === Language.HE;
 
@@ -78,19 +85,6 @@ const AuthForm: React.FC<AuthFormProps> = (props) => {
       <form onSubmit={props.onSubmit} className={`space-y-6 ${props.isRestrictionError ? 'opacity-40 pointer-events-none' : ''}`}>
         <div className="space-y-4">
           <div className="relative group">
-            <Hash className={`absolute ${isRTL ? 'right-5' : 'left-5'} top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-500 transition-colors`} size={20} />
-            <input
-              type="text" 
-              inputMode="numeric"
-              disabled={props.role === 'admin'}
-              className={`w-full bg-[#f8faff] border border-slate-100 rounded-2xl py-5 ${isRTL ? 'pr-14 pl-5 text-right' : 'pl-14 pr-5 text-left'} text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-300 font-bold ${isRTL ? 'text-lg' : 'text-base'} ${props.role === 'admin' ? 'opacity-50 cursor-not-allowed bg-slate-50' : ''}`}
-              placeholder={t.matchNumber}
-              value={props.role === 'admin' ? '' : props.matchNumber}
-              onChange={(e) => props.setMatchNumber(e.target.value)}
-            />
-          </div>
-
-          <div className="relative group">
             <User className={`absolute ${isRTL ? 'right-5' : 'left-5'} top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-500 transition-colors`} size={20} />
             <input
               type="text"
@@ -102,20 +96,59 @@ const AuthForm: React.FC<AuthFormProps> = (props) => {
           </div>
 
           <div className="relative group">
-            <Users className={`absolute ${isRTL ? 'right-5' : 'left-5'} top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-500 transition-colors`} size={20} />
+            <Lock className={`absolute ${isRTL ? 'right-5' : 'left-5'} top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-500 transition-colors`} size={20} />
             <input
-              type="text" 
-              inputMode="numeric"
-              disabled={props.role === 'admin'}
-              className={`w-full bg-[#f8faff] border border-slate-100 rounded-2xl py-5 ${isRTL ? 'pr-14 pl-5 text-right' : 'pl-14 pr-5 text-left'} text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-300 font-bold ${isRTL ? 'text-lg' : 'text-base'} ${props.role === 'admin' ? 'opacity-50 cursor-not-allowed bg-slate-50' : ''}`}
-              placeholder={t.teamNumber}
-              value={props.role === 'admin' ? '' : props.teamScouted}
-              onChange={(e) => props.setTeamScouted(e.target.value)}
+              type="text"
+              autoComplete="off"
+              data-1p-ignore
+              style={showPassword ? {} : { WebkitTextSecurity: 'disc' } as any}
+              className={`w-full bg-[#f8faff] border border-slate-100 rounded-2xl py-5 ${isRTL ? 'pr-14 pl-14 text-right' : 'pl-14 pr-14 text-left'} text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-300 font-bold ${isRTL ? 'text-lg' : 'text-base'}`}
+              placeholder={t.password}
+              value={props.password || ''}
+              onChange={(e) => props.setPassword?.(e.target.value)}
             />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className={`absolute ${isRTL ? 'left-4' : 'right-4'} top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none transition-colors p-2`}
+              title={showPassword ? "Hide password" : "Show password"}
+            >
+              {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+            </button>
           </div>
+          
+          {props.authenticatedRole && (
+            <>
+              <div className="relative group">
+                <Hash className={`absolute ${isRTL ? 'right-5' : 'left-5'} top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-500 transition-colors`} size={20} />
+                <input
+                  type="text" 
+                  inputMode="numeric"
+                  disabled={props.role === 'admin'}
+                  className={`w-full bg-[#f8faff] border border-slate-100 rounded-2xl py-5 ${isRTL ? 'pr-14 pl-5 text-right' : 'pl-14 pr-5 text-left'} text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-300 font-bold ${isRTL ? 'text-lg' : 'text-base'} ${props.role === 'admin' ? 'opacity-50 cursor-not-allowed bg-slate-50' : ''}`}
+                  placeholder={t.matchNumber}
+                  value={props.role === 'admin' ? '' : props.matchNumber}
+                  onChange={(e) => props.setMatchNumber(e.target.value)}
+                />
+              </div>
+
+              <div className="relative group">
+                <Users className={`absolute ${isRTL ? 'right-5' : 'left-5'} top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-500 transition-colors`} size={20} />
+                <input
+                  type="text" 
+                  inputMode="numeric"
+                  disabled={props.role === 'admin'}
+                  className={`w-full bg-[#f8faff] border border-slate-100 rounded-2xl py-5 ${isRTL ? 'pr-14 pl-5 text-right' : 'pl-14 pr-5 text-left'} text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-300 font-bold ${isRTL ? 'text-lg' : 'text-base'} ${props.role === 'admin' ? 'opacity-50 cursor-not-allowed bg-slate-50' : ''}`}
+                  placeholder={t.teamNumber}
+                  value={props.role === 'admin' ? '' : props.teamScouted}
+                  onChange={(e) => props.setTeamScouted(e.target.value)}
+                />
+              </div>
+            </>
+          )}
         </div>
 
-        {props.role === 'scouter' && (
+        {props.authenticatedRole && props.role === 'scouter' && (
           <div className="pt-2">
             <span className={`block font-black text-slate-400 uppercase tracking-[0.2em] text-center mb-4 ${isRTL ? 'text-[11px]' : 'text-[10px]'}`}>{t.teamColor}</span>
             <div className="grid grid-cols-2 gap-4">
@@ -144,25 +177,38 @@ const AuthForm: React.FC<AuthFormProps> = (props) => {
             {[ 
               { key: 'scouter', label: t.scouter, activeColor: 'bg-[#00a67e] border-[#00a67e] text-white shadow-lg shadow-emerald-500/20', inactiveColor: 'bg-[#e8f5e9] border-[#c8e6c9] text-[#2e7d32]' }, 
               { key: 'admin', label: t.admin, activeColor: 'bg-[#00a67e] border-[#00a67e] text-white shadow-lg shadow-emerald-500/20', inactiveColor: 'bg-[#e8f5e9] border-[#c8e6c9] text-[#2e7d32]' } 
-            ].map((r) => (
-              <button
-                key={r.key} 
-                type="button" 
-                disabled={props.isUpdateMode}
-                onClick={() => props.setRole(r.key as 'scouter' | 'admin')}
-                className={`py-4 px-4 rounded-2xl border-2 font-black uppercase tracking-[0.2em] transition-all transform active:scale-[0.98] ${
-                  props.role === r.key 
-                  ? r.activeColor 
-                  : r.inactiveColor
-                } ${isRTL ? 'text-xs' : 'text-[10px]'} ${props.isUpdateMode ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                {r.label}
-              </button>
-            ))}
+            ].map((r) => {
+              const isDisabledByRole = !props.authenticatedRole || (props.authenticatedRole !== 'both' && props.authenticatedRole !== r.key);
+              const visuallyDisabled = props.isUpdateMode || isDisabledByRole;
+              return (
+                <button
+                  key={r.key} 
+                  type="button" 
+                  disabled={visuallyDisabled}
+                  onClick={() => props.setRole(r.key as 'scouter' | 'admin')}
+                  className={`py-4 px-4 rounded-2xl border-2 font-black uppercase tracking-[0.2em] transition-all transform active:scale-[0.98] ${
+                    props.role === r.key && props.authenticatedRole
+                    ? r.activeColor 
+                    : r.inactiveColor
+                  } ${isRTL ? 'text-xs' : 'text-[10px]'} ${visuallyDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {r.label}
+                </button>
+              )
+            })}
           </div>
         </div>
 
-        {props.role === 'admin' ? (
+        {!props.authenticatedRole ? (
+          <button 
+            type="button" 
+            onClick={props.onAuthenticate}
+            disabled={props.authLoading}
+            className={`w-full bg-[#4d4dff] hover:bg-[#4040ff] text-white font-black uppercase tracking-[0.2em] py-6 rounded-2xl transition-all shadow-2xl shadow-indigo-500/30 transform active:scale-[0.98] mt-6 ${isRTL ? 'text-lg' : 'text-base'} ${props.authLoading ? 'opacity-70 cursor-wait' : ''}`}
+          >
+            {props.authLoading ? '...' : (isRTL ? 'התחבר' : 'Login')}
+          </button>
+        ) : props.role === 'admin' ? (
           <div className="grid grid-cols-2 gap-4 mt-6">
             <button 
               type="button"
@@ -185,6 +231,16 @@ const AuthForm: React.FC<AuthFormProps> = (props) => {
             className={`w-full bg-[#4d4dff] hover:bg-[#4040ff] text-white font-black uppercase tracking-[0.2em] py-6 rounded-2xl transition-all shadow-2xl shadow-indigo-500/30 transform active:scale-[0.98] mt-6 ${isRTL ? 'text-lg' : 'text-base'}`}
           >
             {props.isUpdateMode ? t.updateBegin : t.begin}
+          </button>
+        )}
+
+        {props.authenticatedRole && (
+          <button
+            type="button"
+            onClick={props.onLogout}
+            className="w-full border-2 border-slate-200 text-slate-500 font-extrabold uppercase tracking-[0.2em] py-4 rounded-2xl transition-all hover:bg-slate-50 active:scale-[0.98] text-xs mt-3 flex items-center justify-center gap-2"
+          >
+            {t.logout}
           </button>
         )}
       </form>

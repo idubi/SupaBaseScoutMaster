@@ -20,6 +20,7 @@ export const AuthTranslation_EN = {
   matchStart: "Match Start",
   matchNumber: "Match Number",
   name: "Name",
+  password: "Password",
   adminName: "Admin Name",
   teamNumber: "Team #",
   accessLevel: "Mode",
@@ -37,7 +38,8 @@ export const AuthTranslation_EN = {
   updateTitle: "Update Mission",
   updateBegin: "Update Session",
   cancelAndReturn: "Cancel & Return",
-  deleteGame: "Delete Game"
+  deleteGame: "Delete Game",
+  logout: "Sign Out"
 };
 
 export const AuthTranslation_HE = {
@@ -46,6 +48,7 @@ export const AuthTranslation_HE = {
   matchStart: "התחלת משחק",
   matchNumber: "מספר משחק",
   name: "שם",
+  password: "סיסמא",
   adminName: "שם מנהל",
   teamNumber: "מספר קבוצה",
   accessLevel: "מצב",
@@ -63,7 +66,8 @@ export const AuthTranslation_HE = {
   updateTitle: "עדכון משימה",
   updateBegin: "עדכון משחק",
   cancelAndReturn: "ביטול וחזרה",
-  deleteGame: "מחיקת משחק"
+  deleteGame: "מחיקת משחק",
+  logout: "התנתק"
 };
 
 export const AutoTranslation_EN = {
