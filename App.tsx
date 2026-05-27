@@ -8,6 +8,7 @@ import SummaryBinding from './components/summary/SummaryBinding';
 import AdminBinding from './components/admin/AdminBinding';
 import { Layout } from './components/Layout';
 import { AppTranslation_EN, AppTranslation_HE, AuthTranslation_EN, AuthTranslation_HE } from './components/translations';
+import { calculateTeamGrade } from './lib/gradingEngine';
 import { motion } from 'motion/react';
 import { 
   ClipboardList, 
@@ -19,7 +20,9 @@ import {
   RefreshCw,
   Table as TableIcon,
   Database,
-  AlertCircle
+  AlertCircle,
+  Sliders,
+  HelpCircle
 } from 'lucide-react';
 import {ENV}  from "./constants";
 
@@ -88,6 +91,106 @@ const App: React.FC = () => {
     autoCalcStatus: 'idle' as 'idle' | 'running' | 'error',
     consecutiveFailures: 0
   });
+
+  // Grades Config states and simulation hooks in App.tsx
+  const [isWeightsModalOpen, setIsWeightsModalOpen] = useState(false);
+  const [sliderWeights, setSliderWeights] = useState({
+    POINTS_AUTO_HIT: 7,
+    POINTS_TELEOP_HIT: 5,
+    POINTS_PARKING: 5,
+    POINTS_AUTO_MISS: -1,
+    POINTS_TELEOP_MISS: -1,
+    POINTS_FAUL: -2
+  });
+  const [isSavingWeights, setIsSavingWeights] = useState(false);
+  const [showWeightsHelp, setShowWeightsHelp] = useState(false);
+
+  const fetchWeights = async () => {
+    try {
+      const res = await fetch('/api/grading-config');
+      if (res.ok) {
+        const body = await res.json();
+        if (body.success && body.config) {
+          setSliderWeights({
+            POINTS_AUTO_HIT: Number(body.config.POINTS_AUTO_HIT),
+            POINTS_TELEOP_HIT: Number(body.config.POINTS_TELEOP_HIT),
+            POINTS_PARKING: Number(body.config.POINTS_PARKING),
+            POINTS_AUTO_MISS: Number(body.config.POINTS_AUTO_MISS),
+            POINTS_TELEOP_MISS: Number(body.config.POINTS_TELEOP_MISS),
+            POINTS_FAUL: Number(body.config.POINTS_FAUL)
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch grading configuration weights", err);
+    }
+  };
+
+  const handleSaveWeights = async () => {
+    setIsSavingWeights(true);
+    try {
+      const res = await fetch('/api/grading-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sliderWeights)
+      });
+      if (res.ok) {
+        setIsWeightsModalOpen(false);
+        // Recalculate and rebuild grades on server, which fetches latest grades
+        await handleRecalculate();
+        alert(language === Language.HE ? 'הגדרות נשמרו בהצלחה והציונים חושבו מחדש!' : 'Weights successfully saved and grades recalculated!');
+      } else {
+        alert(language === Language.HE ? 'שגיאה בשמירת הגדרות' : 'Failed to save weights');
+      }
+    } catch (err) {
+      console.error(err);
+      alert(language === Language.HE ? 'שגיאה בתקשורת עם השרת' : 'Connection error');
+    } finally {
+      setIsSavingWeights(false);
+    }
+  };
+
+  const simulatedTeams = React.useMemo(() => {
+    if (!teamsGrades || teamsGrades.length === 0) return [];
+    
+    const results = teamsGrades.map((team: any) => {
+      const mappedData = {
+        TeamNumber: team.TeamNumber,
+        GAMES_COUNT: Number(team.GAMES_COUNT || 1),
+        TOTAL_TELEOP_HIT: Number(team.TOTAL_TELEOP_HIT || 0),
+        TOTAL_AUTONOMUS_HIT: Number(team.TOTAL_AUTONOMUS_HIT || 0),
+        TOTAL_TELEOP_MISS: Number(team.TOTAL_TELEOP_MISS || 0),
+        TOTAL_AUTONOMUS_MISS: Number(team.TOTAL_AUTONOMUS_MISS || 0),
+        TOTAL_IS_FULL_PARKING: Number(team.TOTAL_IS_FULL_PARKING || 0),
+        TOTAL_AUTO_ZONE_SMALL: Number(team.TOTAL_AUTO_ZONE_SMALL || 0),
+        TOTAL_AUTO_ZONE_BIG: Number(team.TOTAL_AUTO_ZONE_BIG || 0),
+        TOTAL_TELEOP_ZONE_SMALL: Number(team.TOTAL_TELEOP_ZONE_SMALL || 0),
+        TOTAL_TELEOP_ZONE_BIG: Number(team.TOTAL_TELEOP_ZONE_BIG || 0),
+        TOTAL_AUTO_LEAVE: Number(team.TOTAL_AUTO_LEAVE || 0),
+        TOTAL_FOULS: Number(team.TOTAL_FOULS || 0),
+        TOTAL_GATE_FOULS: Number(team.TOTAL_GATE_FOULS || 0),
+        TOTAL_PARKING_FOULS: Number(team.TOTAL_PARKING_FOULS || 0),
+        TOTAL_INTAKE_FOULS: Number(team.TOTAL_INTAKE_FOULS || 0),
+        GRADE: Number(team.GRADE || 0),
+        RATIO: Number(team.RATIO || 0),
+        RANK: Number(team.RANK || 1)
+      };
+      
+      const { grade, ratio } = calculateTeamGrade(mappedData, sliderWeights);
+      return {
+        ...team,
+        SIMULATED_GRADE: grade,
+        SIMULATED_RATIO: ratio
+      };
+    });
+
+    results.sort((a, b) => b.SIMULATED_GRADE - a.SIMULATED_GRADE);
+
+    return results.map((team, idx) => ({
+      ...team,
+      SIMULATED_RANK: idx + 1
+    }));
+  }, [teamsGrades, sliderWeights]);
 
   React.useEffect(() => {
     const checkStatus = async () => {
@@ -902,7 +1005,7 @@ const App: React.FC = () => {
               </div>
 
               {/* Consolidate Data Card */}
-              <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 flex flex-col items-center text-center h-full">
+              <div id="mgt-consolidate-card" className="bg-slate-50 p-6 rounded-3xl border border-slate-200 flex flex-col items-center text-center h-full">
                 <div className="w-12 h-12 bg-emerald-100 rounded-2xl flex items-center justify-center text-emerald-600 mb-4">
                   <RefreshCw size={24} />
                 </div>
@@ -921,11 +1024,38 @@ const App: React.FC = () => {
                   <p className="text-[10px] text-red-500 font-bold mb-4 line-clamp-2">{recalcError}</p>
                 )}
                 <button
+                  id="btn-mgt-consolidate"
                   onClick={handleRecalculate}
                   disabled={recalcStatus === 'loading'}
                   className={`w-full py-3 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all flex items-center justify-center gap-2 mt-auto ${getButtonClass(recalcStatus)}`}
                 >
                   {recalcStatus === 'loading' ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Recalculating...</> : (isRTL ? 'רענן וגבש נתונים' : 'Consolidate Now')}
+                </button>
+              </div>
+
+              {/* Grades Config Card */}
+              <div id="mgt-grades-config-card" className="bg-slate-50 p-6 rounded-3xl border border-slate-200 flex flex-col items-center text-center h-full">
+                <div className="w-12 h-12 bg-purple-100 rounded-2xl flex items-center justify-center text-purple-600 mb-4">
+                  <Sliders size={24} />
+                </div>
+                <h3 className="text-lg font-bold text-slate-800 mb-2">
+                  {isRTL ? 'הגדרות חישוב' : 'Grades Config'}
+                </h3>
+                <p className="text-xs text-slate-500 mb-6 leading-relaxed">
+                  {isRTL 
+                    ? 'קבע את משקלי הפרמטרים השונים לצורך דירוג וציוני הקבוצות.' 
+                    : 'Configure scoring weights used in the grading system calculation.'}
+                </p>
+                <button
+                  id="btn-mgt-grades-config"
+                  onClick={() => {
+                    setIsWeightsModalOpen(true);
+                    fetchWeights();
+                  }}
+                  className="w-full py-3 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all flex items-center justify-center gap-2 mt-auto bg-purple-600 hover:bg-purple-700 text-white shadow-lg active:scale-[0.98]"
+                >
+                  <Sliders size={14} />
+                  {isRTL ? 'עדכן הגדרות' : 'Configure Weights'}
                 </button>
               </div>
             </div>
@@ -1037,6 +1167,299 @@ const App: React.FC = () => {
             </div>
           </div>
         </motion.div>
+      )}
+      {isWeightsModalOpen && (
+        <div id="weights-modal-overlay" className="fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <motion.div 
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-[2rem] shadow-2xl border-2 border-slate-900 p-6 sm:p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto relative text-slate-700"
+            dir={language === Language.HE ? 'rtl' : 'ltr'}
+          >
+            {/* Close Button */}
+            <button 
+              id="btn-close-weights-modal"
+              onClick={() => setIsWeightsModalOpen(false)}
+              className={`absolute top-6 ${language === Language.HE ? 'left-6' : 'right-6'} p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400 z-10`}
+            >
+              <X size={24} />
+            </button>
+
+            {/* Header */}
+            <div className="mb-6">
+              <span className="text-[10px] font-black uppercase text-purple-600 tracking-widest">
+                {language === Language.HE ? 'הגדרות מתקדמות עבור ניהול מערכת' : 'Advanced System Admin Configuration'}
+              </span>
+              <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-2 mt-1">
+                <Sliders className="text-purple-600" />
+                {language === Language.HE ? 'הגדרות חישוב ציונים קבוצתיים' : 'Overall Grading Weights'}
+              </h2>
+              <p className="text-xs text-slate-500 font-bold mt-1">
+                {language === Language.HE 
+                  ? 'כוון את משקלי הפרמטרים השונים. השמירה תעדכן ותחשב מחדש את ציוני כל הקבוצות בענן!' 
+                  : 'Adjust relative parameters weights. Saving will store values and instantly recalculate all database values.'}
+              </p>
+            </div>
+
+            {/* Grid layout inside the modal */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-stretch">
+              
+              {/* Left Column: Form/Sliders */}
+              <div className="space-y-5 border-b lg:border-b-0 lg:border-e border-slate-200 pb-6 lg:pb-0 lg:pe-8">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-bold text-slate-800 text-sm">
+                    {language === Language.HE ? 'משקלי פרמטרים' : 'Relative Parameter Weights'}
+                  </h3>
+                  <button
+                    id="btn-toggle-weights-help"
+                    onClick={() => setShowWeightsHelp(!showWeightsHelp)}
+                    className="flex items-center gap-1 text-[11px] font-bold text-purple-600 hover:text-purple-700 hover:underline"
+                  >
+                    <HelpCircle size={14} />
+                    {language === Language.HE ? 'עזרה והסברים' : 'Help & Methodology'}
+                  </button>
+                </div>
+
+                {showWeightsHelp && (
+                  <div className="bg-purple-50 border border-purple-150 p-4 rounded-2xl text-xs space-y-2 text-purple-950 animate-in fade-in duration-200">
+                    <p className="font-bold">
+                      {language === Language.HE ? 'נוסחת החישוב היסודית:' : 'Primary Mathematical Formula:'}
+                    </p>
+                    <code className="block bg-white/60 p-2 rounded font-mono text-[10px] text-center">
+                      Grade = (AvgAutoHit × WEIGHT_AUTOHIT) + (AvgTeleHit × WEIGHT_TELEHIT) + (AvgPark × WEIGHT_PARK) + (AvgAutoMiss × WEIGHT_AUTOMISS) + (AvgTeleMiss × WEIGHT_TELEMISS) + (AvgFouls × WEIGHT_FAUL)
+                    </code>
+                    <p className="leading-relaxed">
+                      {language === Language.HE 
+                        ? 'ערכי הפגיעות החיוביות מוסיפים לציון הקבוצה, בעוד משקלי ההחטאות (Miss) והעבירות (Fouls) מתפקדים כקנסות המורידים מהציון המצטבר של הקבוצה.' 
+                        : 'Positive weights reward hits, while negative weights penalize misses and active fouls.'}
+                    </p>
+                  </div>
+                )}
+
+                {/* Slider: Auto Hit */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                    <span>{language === Language.HE ? 'פגיעות אוטונומי (POINTS_AUTO_HIT)' : 'Auto Hits Weight'}</span>
+                    <input 
+                      type="number" 
+                      min="-100" 
+                      max="100" 
+                      value={sliderWeights.POINTS_AUTO_HIT}
+                      onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_AUTO_HIT: Number(e.target.value) })}
+                      className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                    />
+                  </div>
+                  <input 
+                    type="range" 
+                    min="-100" 
+                    max="100" 
+                    value={sliderWeights.POINTS_AUTO_HIT}
+                    onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_AUTO_HIT: Number(e.target.value) })}
+                    className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                  />
+                </div>
+
+                {/* Slider: Tele Hit */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                    <span>{language === Language.HE ? 'פגיעות טלאופ (POINTS_TELEOP_HIT)' : 'Teleop Hits Weight'}</span>
+                    <input 
+                      type="number" 
+                      min="-100" 
+                      max="100" 
+                      value={sliderWeights.POINTS_TELEOP_HIT}
+                      onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_TELEOP_HIT: Number(e.target.value) })}
+                      className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                    />
+                  </div>
+                  <input 
+                    type="range" 
+                    min="-100" 
+                    max="100" 
+                    value={sliderWeights.POINTS_TELEOP_HIT}
+                    onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_TELEOP_HIT: Number(e.target.value) })}
+                    className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                  />
+                </div>
+
+                {/* Slider: Parking */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                    <span>{language === Language.HE ? 'חנייה (POINTS_PARKING)' : 'Parking Weight'}</span>
+                    <input 
+                      type="number" 
+                      min="-100" 
+                      max="100" 
+                      value={sliderWeights.POINTS_PARKING}
+                      onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_PARKING: Number(e.target.value) })}
+                      className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                    />
+                  </div>
+                  <input 
+                    type="range" 
+                    min="-100" 
+                    max="100" 
+                    value={sliderWeights.POINTS_PARKING}
+                    onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_PARKING: Number(e.target.value) })}
+                    className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                  />
+                </div>
+
+                {/* Slider: Auto Miss */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                    <span>{language === Language.HE ? 'החטאות אוטונומי (POINTS_AUTO_MISS)' : 'Auto Miss Weight'}</span>
+                    <input 
+                      type="number" 
+                      min="-100" 
+                      max="100" 
+                      value={sliderWeights.POINTS_AUTO_MISS}
+                      onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_AUTO_MISS: Number(e.target.value) })}
+                      className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                    />
+                  </div>
+                  <input 
+                    type="range" 
+                    min="-100" 
+                    max="100" 
+                    value={sliderWeights.POINTS_AUTO_MISS}
+                    onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_AUTO_MISS: Number(e.target.value) })}
+                    className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                  />
+                </div>
+
+                {/* Slider: Tele Miss */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                    <span>{language === Language.HE ? 'החטאות טלאופ (POINTS_TELEOP_MISS)' : 'Teleop Miss Weight'}</span>
+                    <input 
+                      type="number" 
+                      min="-100" 
+                      max="100" 
+                      value={sliderWeights.POINTS_TELEOP_MISS}
+                      onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_TELEOP_MISS: Number(e.target.value) })}
+                      className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                    />
+                  </div>
+                  <input 
+                    type="range" 
+                    min="-100" 
+                    max="100" 
+                    value={sliderWeights.POINTS_TELEOP_MISS}
+                    onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_TELEOP_MISS: Number(e.target.value) })}
+                    className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                  />
+                </div>
+
+                {/* Slider: Fouls */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                    <span>{language === Language.HE ? 'עבירות (POINTS_FAUL)' : 'Fouls Weight'}</span>
+                    <input 
+                      type="number" 
+                      min="-100" 
+                      max="100" 
+                      value={sliderWeights.POINTS_FAUL}
+                      onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_FAUL: Number(e.target.value) })}
+                      className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                    />
+                  </div>
+                  <input 
+                    type="range" 
+                    min="-100" 
+                    max="100" 
+                    value={sliderWeights.POINTS_FAUL}
+                    onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_FAUL: Number(e.target.value) })}
+                    className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                  />
+                </div>
+              </div>
+
+              {/* Right Column: Simulated Live Rankings Outputs */}
+              <div className="flex flex-col h-full justify-between">
+                <div>
+                  <h3 className="font-bold text-slate-800 text-sm mb-3">
+                    {language === Language.HE ? 'תצוגת סימולציית ציונים ודירוגים' : 'Simulated Ranking Outcomes'}
+                  </h3>
+
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                    {simulatedTeams.length === 0 ? (
+                      <p className="text-slate-400 text-xs italic text-center py-6">
+                        {language === Language.HE ? 'אין נתוני קבוצות לסימולציה כרגע' : 'No team grades discovered yet to run simulation.'}
+                      </p>
+                    ) : (
+                      simulatedTeams.map((sim: any) => {
+                        const actualGrade = teamsGrades.find(t => t.TeamNumber === sim.TeamNumber);
+                        const diffGrade = actualGrade ? (sim.SIMULATED_GRADE - actualGrade.GRADE) : 0;
+                        const diffRank = actualGrade ? (actualGrade.RANK - sim.SIMULATED_RANK) : 0;
+
+                        return (
+                          <div 
+                            key={sim.TeamNumber} 
+                            className="bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl p-3 transition-all flex items-center justify-between"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="w-5 h-5 rounded-full bg-slate-900 text-white text-[9px] flex items-center justify-center font-black">
+                                {sim.SIMULATED_RANK}
+                              </span>
+                              <span className="text-xs font-black text-slate-900">
+                                {language === Language.HE ? 'קבוצה' : 'Team'} {sim.TeamNumber}
+                              </span>
+                            </div>
+                            
+                            <div className="flex items-center gap-4">
+                              <div className="text-right">
+                                <span className="text-sm font-black text-purple-600 font-mono">
+                                  {sim.SIMULATED_GRADE}
+                                </span>
+                              </div>
+
+                              <div className="text-[10px] text-slate-400 font-bold border-s border-slate-200 ps-3">
+                                {actualGrade && (
+                                  <div className="flex flex-col items-end">
+                                    <span className="font-mono text-[9px] text-slate-400">
+                                      {language === Language.HE ? 'קודם: ' : 'Prev: '} 
+                                      <span className="font-black text-slate-600">{actualGrade.GRADE}</span>
+                                    </span>
+                                    {diffGrade !== 0 && (
+                                      <span className={`font-mono font-black text-[9px] ${diffGrade > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                        {diffGrade > 0 ? `+${diffGrade.toFixed(1)}` : diffGrade.toFixed(1)}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                {/* Confirm / Save Actions in right column footer */}
+                <div className="flex items-center gap-3 mt-6 pt-4 border-t border-slate-150 justify-end w-full">
+                  <button
+                    id="btn-cancel-weights"
+                    onClick={() => setIsWeightsModalOpen(false)}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-xs uppercase cursor-pointer transition-all"
+                  >
+                    {language === Language.HE ? 'ביטול' : 'Cancel'}
+                  </button>
+                  <button
+                    id="btn-save-weights"
+                    onClick={handleSaveWeights}
+                    disabled={isSavingWeights}
+                    className="px-6 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-black rounded-xl text-xs uppercase cursor-pointer shadow-lg shadow-purple-100 transition-all flex items-center gap-1.5"
+                  >
+                    {isSavingWeights ? (language === Language.HE ? 'שומר...' : 'Saving...') : (language === Language.HE ? 'שמור משקלים' : 'Save Config')}
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          </motion.div>
+        </div>
       )}
       <Layout 
         user={user} 

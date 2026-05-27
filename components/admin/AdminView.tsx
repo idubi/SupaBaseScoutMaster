@@ -13,7 +13,7 @@ import {
   Legend, 
   ResponsiveContainer 
 } from 'recharts';
-import { Search, Table as TableIcon, BarChart3, LineChart as LineChartIcon, ArrowLeft, ChevronDown, Check, X, Trophy, RefreshCw, ScrollText, History, AlertCircle, Clock, LayoutGrid, Database } from 'lucide-react';
+import { Search, Table as TableIcon, BarChart3, LineChart as LineChartIcon, ArrowLeft, ChevronDown, Check, X, Trophy, RefreshCw, ScrollText, History, AlertCircle, Clock, LayoutGrid, Database, Sliders, HelpCircle } from 'lucide-react';
 import { Language, SpreadsheetRow, TeamAggregatedData, ProcessLog } from '../../types';
 import { AdminTranslation_EN, AdminTranslation_HE } from '../translations';
 import { calculateTeamGrade } from '../../lib/gradingEngine';
@@ -126,6 +126,120 @@ const AdminView: React.FC<AdminViewProps> = ({
   const [selectedMatch, setSelectedMatch] = useState<string>('');
   const [isMatchDropdownOpen, setIsMatchDropdownOpen] = useState(false);
   const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
+
+  // Dynamic config states
+  const [dbWeights, setDbWeights] = useState({
+    POINTS_AUTO_HIT: 7,
+    POINTS_TELEOP_HIT: 5,
+    POINTS_PARKING: 5,
+    POINTS_AUTO_MISS: -1,
+    POINTS_TELEOP_MISS: -1,
+    POINTS_FAUL: -2
+  });
+  const [sliderWeights, setSliderWeights] = useState({
+    POINTS_AUTO_HIT: 7,
+    POINTS_TELEOP_HIT: 5,
+    POINTS_PARKING: 5,
+    POINTS_AUTO_MISS: -1,
+    POINTS_TELEOP_MISS: -1,
+    POINTS_FAUL: -2
+  });
+  const [showHelp, setShowHelp] = useState(false);
+  const [isSavingWeights, setIsSavingWeights] = useState(false);
+  const [simulatedGrades, setSimulatedGrades] = useState<any[]>([]);
+
+  // Load weights from database
+  const fetchWeights = async () => {
+    try {
+      const res = await fetch('/api/grading-config');
+      if (res.ok) {
+        const body = await res.json();
+        if (body.success && body.config) {
+          const w = {
+            POINTS_AUTO_HIT: Number(body.config.POINTS_AUTO_HIT),
+            POINTS_TELEOP_HIT: Number(body.config.POINTS_TELEOP_HIT),
+            POINTS_PARKING: Number(body.config.POINTS_PARKING),
+            POINTS_AUTO_MISS: Number(body.config.POINTS_AUTO_MISS),
+            POINTS_TELEOP_MISS: Number(body.config.POINTS_TELEOP_MISS),
+            POINTS_FAUL: Number(body.config.POINTS_FAUL)
+          };
+          setDbWeights(w);
+          setSliderWeights(w);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch grading configuration weights", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchWeights();
+  }, []);
+
+  // Run in-memory simulation with current slider values
+  const runSimulation = () => {
+    if (!teamsGrades || teamsGrades.length === 0) return;
+    
+    const simulated = teamsGrades.map(team => {
+      const simulatedResult = calculateTeamGrade(team, sliderWeights);
+      return {
+        TeamNumber: team.TeamNumber,
+        GAMES_COUNT: team.GAMES_COUNT,
+        TOTAL_TELEOP_HIT: team.TOTAL_TELEOP_HIT,
+        TOTAL_AUTONOMUS_HIT: team.TOTAL_AUTONOMUS_HIT,
+        TOTAL_TELEOP_MISS: team.TOTAL_TELEOP_MISS,
+        TOTAL_AUTONOMUS_MISS: team.TOTAL_AUTONOMUS_MISS,
+        TOTAL_IS_FULL_PARKING: team.TOTAL_IS_FULL_PARKING,
+        TOTAL_FOULS: team.TOTAL_FOULS,
+        GRADE: simulatedResult.grade,
+        RATIO: simulatedResult.ratio
+      };
+    });
+
+    // Sort descending by simulated grade
+    simulated.sort((a, b) => b.GRADE - a.GRADE);
+    
+    // Assign simulated rank
+    const ranked = simulated.map((team, idx) => ({
+      ...team,
+      RANK: idx + 1
+    }));
+    
+    setSimulatedGrades(ranked);
+  };
+
+  useEffect(() => {
+    runSimulation();
+  }, [teamsGrades, sliderWeights]);
+
+  const handleSaveWeights = async () => {
+    setIsSavingWeights(true);
+    try {
+      const res = await fetch('/api/grading-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sliderWeights)
+      });
+      if (res.ok) {
+        await fetchWeights();
+        if (onRecalculate) {
+          await onRecalculate();
+        }
+        alert(isRTL ? 'הגדרות נשמרו בהצלחה והציונים חושבו מחדש!' : 'Weights successfully saved and grades recalculated!');
+      } else {
+        alert(isRTL ? 'שגיאה בשמירת הגדרות' : 'Failed to save weights');
+      }
+    } catch (err) {
+      console.error(err);
+      alert(isRTL ? 'שגיאה בתקשורת עם השרת' : 'Connection error');
+    } finally {
+      setIsSavingWeights(false);
+    }
+  };
+
+  const handleCancelWeights = () => {
+    setSliderWeights({ ...dbWeights });
+  };
 
   // Countdown timer for automatic calculation
   useEffect(() => {
@@ -616,7 +730,7 @@ const AdminView: React.FC<AdminViewProps> = ({
 
     // 2. Calculate grades for all teams
     const teamsWithGrades = uniqueTeamsGrades.map(teamData => {
-      const { grade, ratio, gradeDetails } = calculateTeamGrade(teamData);
+      const { grade, ratio, gradeDetails } = calculateTeamGrade(teamData, sliderWeights);
       return {
         ...teamData,
         grade,
@@ -1990,6 +2104,402 @@ const AdminView: React.FC<AdminViewProps> = ({
           </div>
         </div>
       )}
+
+      {(activeTab as string) === 'config' && (
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          {/* Header & Help button */}
+          <div className="bg-white border-2 border-slate-900 rounded-[2rem] p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-2">
+                <Sliders className="text-indigo-600" />
+                {isRTL ? 'הגדרות חישוב ציונים' : 'Grades Configuration'}
+              </h2>
+              <p className="text-xs text-slate-500 font-bold mt-1">
+                {isRTL 
+                  ? 'הגדרת המשקלים היחסיים ונקודות הזכות עבור כלל הקבוצות המשתתפות' 
+                  : 'Manage relative weights and values for team overall scoring engine'}
+              </p>
+            </div>
+            
+            <button
+              onClick={() => setShowHelp(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-50 border-2 border-indigo-600 text-indigo-600 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-indigo-100 transition-all shadow-[4px_4px_0px_0px_rgba(79,70,229,0.2)]"
+            >
+              <HelpCircle size={15} />
+              {isRTL ? 'עזרה והסברים' : 'Methodology Help'}
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            {/* Left/Middle Column: Weights Sliders & Raw Table */}
+            <div className="lg:col-span-2 space-y-8">
+              
+              {/* Sliders Card */}
+              <div className="bg-white border-2 border-slate-900 rounded-[2rem] p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+                <h3 className="text-lg font-black text-slate-900 mb-6 border-b-2 border-slate-100 pb-3 flex items-center gap-2">
+                  <Sliders size={18} className="text-indigo-600" />
+                  {isRTL ? 'כוון משקלי פרמטרים' : 'Adjust Relative Weights (-100 to 100)'}
+                </h3>
+                
+                <div className="space-y-6">
+                  {/* Weight Auto Hit */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center text-xs font-black uppercase text-slate-700">
+                      <span>{isRTL ? 'פגיעות אוטונומי (POINTS_AUTO_HIT)' : 'Auto Hits Weight'}</span>
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="number" 
+                          min="-100" 
+                          max="100" 
+                          value={sliderWeights.POINTS_AUTO_HIT}
+                          onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_AUTO_HIT: Number(e.target.value) })}
+                          className="w-14 text-center px-1.5 py-0.5 border-2 border-slate-900 rounded-md font-mono font-bold"
+                        />
+                      </div>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="-100" 
+                      max="100" 
+                      value={sliderWeights.POINTS_AUTO_HIT}
+                      onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_AUTO_HIT: Number(e.target.value) })}
+                      className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                    />
+                  </div>
+
+                  {/* Weight Tele Hit */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center text-xs font-black uppercase text-slate-700">
+                      <span>{isRTL ? 'פגיעות טלאופ (POINTS_TELEOP_HIT)' : 'Teleop Hits Weight'}</span>
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="number" 
+                          min="-100" 
+                          max="100" 
+                          value={sliderWeights.POINTS_TELEOP_HIT}
+                          onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_TELEOP_HIT: Number(e.target.value) })}
+                          className="w-14 text-center px-1.5 py-0.5 border-2 border-slate-900 rounded-md font-mono font-bold"
+                        />
+                      </div>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="-100" 
+                      max="100" 
+                      value={sliderWeights.POINTS_TELEOP_HIT}
+                      onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_TELEOP_HIT: Number(e.target.value) })}
+                      className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                    />
+                  </div>
+
+                  {/* Weight Parking */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center text-xs font-black uppercase text-slate-700">
+                      <span>{isRTL ? 'חנייה (POINTS_PARKING)' : 'Parking Weight'}</span>
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="number" 
+                          min="-100" 
+                          max="100" 
+                          value={sliderWeights.POINTS_PARKING}
+                          onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_PARKING: Number(e.target.value) })}
+                          className="w-14 text-center px-1.5 py-0.5 border-2 border-slate-900 rounded-md font-mono font-bold"
+                        />
+                      </div>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="-100" 
+                      max="100" 
+                      value={sliderWeights.POINTS_PARKING}
+                      onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_PARKING: Number(e.target.value) })}
+                      className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                    />
+                  </div>
+
+                  {/* Weight Auto Miss */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center text-xs font-black uppercase text-slate-700">
+                      <span>{isRTL ? 'החטאות אוטונומי (POINTS_AUTO_MISS)' : 'Auto Miss Weight'}</span>
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="number" 
+                          min="-100" 
+                          max="100" 
+                          value={sliderWeights.POINTS_AUTO_MISS}
+                          onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_AUTO_MISS: Number(e.target.value) })}
+                          className="w-14 text-center px-1.5 py-0.5 border-2 border-slate-900 rounded-md font-mono font-bold"
+                        />
+                      </div>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="-100" 
+                      max="100" 
+                      value={sliderWeights.POINTS_AUTO_MISS}
+                      onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_AUTO_MISS: Number(e.target.value) })}
+                      className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                    />
+                  </div>
+
+                  {/* Weight Tele Miss */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center text-xs font-black uppercase text-slate-700">
+                      <span>{isRTL ? 'החטאות טלאופ (POINTS_TELEOP_MISS)' : 'Teleop Miss Weight'}</span>
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="number" 
+                          min="-100" 
+                          max="100" 
+                          value={sliderWeights.POINTS_TELEOP_MISS}
+                          onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_TELEOP_MISS: Number(e.target.value) })}
+                          className="w-14 text-center px-1.5 py-0.5 border-2 border-slate-900 rounded-md font-mono font-bold"
+                        />
+                      </div>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="-100" 
+                      max="100" 
+                      value={sliderWeights.POINTS_TELEOP_MISS}
+                      onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_TELEOP_MISS: Number(e.target.value) })}
+                      className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                    />
+                  </div>
+
+                  {/* Weight Fouls */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center text-xs font-black uppercase text-slate-700">
+                      <span>{isRTL ? 'עבירות (POINTS_FAUL)' : 'Fouls Weight'}</span>
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="number" 
+                          min="-100" 
+                          max="100" 
+                          value={sliderWeights.POINTS_FAUL}
+                          onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_FAUL: Number(e.target.value) })}
+                          className="w-14 text-center px-1.5 py-0.5 border-2 border-slate-900 rounded-md font-mono font-bold"
+                        />
+                      </div>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="-100" 
+                      max="100" 
+                      value={sliderWeights.POINTS_FAUL}
+                      onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_FAUL: Number(e.target.value) })}
+                      className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4 mt-8 pt-6 border-t-2 border-slate-100 justify-end">
+                  <button
+                    onClick={handleCancelWeights}
+                    className="px-4 py-2 border-2 border-slate-500 hover:bg-slate-100 text-slate-700 font-bold rounded-xl text-xs uppercase cursor-pointer"
+                  >
+                    {isRTL ? 'ביטול' : 'Cancel'}
+                  </button>
+                  <button
+                    onClick={runSimulation}
+                    className="px-4 py-2 border-2 border-indigo-600 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-xl text-xs uppercase cursor-pointer"
+                  >
+                    {isRTL ? 'סימולציה מחדש' : 'Simulate'}
+                  </button>
+                  <button
+                    onClick={handleSaveWeights}
+                    disabled={isSavingWeights}
+                    className="px-6 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-black rounded-xl text-xs uppercase cursor-pointer shadow-[4px_4px_0px_0px_rgba(225,29,72,0.3)]"
+                  >
+                    {isSavingWeights ? (isRTL ? 'שומר...' : 'Saving...') : (isRTL ? 'שמור משקלים' : 'Save Weights')}
+                  </button>
+                </div>
+              </div>
+
+              {/* Table Card - Current Raw totals ONLY (No final Grade or Rank displayed yet!) */}
+              <div className="bg-white border-2 border-slate-900 rounded-[2rem] p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+                <h3 className="text-lg font-black text-slate-900 mb-4 border-b-2 border-slate-100 pb-3">
+                  {isRTL ? 'נתוני יסוד קבוצתיים (ללא חישוב ציון)' : 'Baseline Team Stats (No calculated grade/rank yet)'}
+                </h3>
+                
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-xs">
+                    <thead>
+                      <tr className="border-b-2 border-slate-950 font-black text-slate-800 text-[10px] uppercase">
+                        <th className="px-3 py-2 text-start">{isRTL ? 'קבוצה' : 'Team'}</th>
+                        <th className="px-3 py-2 text-center">{isRTL ? 'משחקים' : 'Games'}</th>
+                        <th className="px-3 py-2 text-center">{isRTL ? 'פגיעות אוטונומי' : 'Auto Hits'}</th>
+                        <th className="px-3 py-2 text-center">{isRTL ? 'פגיעות טלאופ' : 'Teleop Hits'}</th>
+                        <th className="px-3 py-2 text-center">{isRTL ? 'החטאות אוטונומי' : 'Auto Miss'}</th>
+                        <th className="px-3 py-2 text-center">{isRTL ? 'החטאות טלאופ' : 'Teleop Miss'}</th>
+                        <th className="px-3 py-2 text-center">{isRTL ? 'חניות מלאות' : 'Full Park'}</th>
+                        <th className="px-3 py-2 text-center">{isRTL ? 'עבירות' : 'Fouls'}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {teamsGrades.map((team) => (
+                        <tr key={team.TeamNumber} className="hover:bg-slate-50">
+                          <td className="px-3 py-2 font-black text-slate-900">{team.TeamNumber}</td>
+                          <td className="px-3 py-2 text-center font-mono font-bold text-slate-600">{team.GAMES_COUNT}</td>
+                          <td className="px-3 py-2 text-center font-mono text-emerald-600">{(team.TOTAL_AUTONOMUS_HIT / team.GAMES_COUNT).toFixed(1)}</td>
+                          <td className="px-3 py-2 text-center font-mono text-emerald-600">{(team.TOTAL_TELEOP_HIT / team.GAMES_COUNT).toFixed(1)}</td>
+                          <td className="px-3 py-2 text-center font-mono text-rose-600">{(team.TOTAL_AUTONOMUS_MISS / team.GAMES_COUNT).toFixed(1)}</td>
+                          <td className="px-3 py-2 text-center font-mono text-rose-600">{(team.TOTAL_TELEOP_MISS / team.GAMES_COUNT).toFixed(1)}</td>
+                          <td className="px-3 py-2 text-center font-mono text-blue-600">{(team.TOTAL_IS_FULL_PARKING / team.GAMES_COUNT).toFixed(1)}</td>
+                          <td className="px-3 py-2 text-center font-mono text-amber-600">{(team.TOTAL_FOULS / team.GAMES_COUNT).toFixed(1)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Right Column: Suggested Simulated Grades Outcomes Checklist */}
+            <div className="lg:col-span-1 space-y-8">
+              
+              <div className="bg-white border-2 border-slate-900 rounded-[2rem] p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+                <div className="border-b-2 border-slate-100 pb-3 mb-4">
+                  <span className="text-[10px] font-black uppercase text-indigo-600 tracking-widest">{isRTL ? 'תצוגה מקדימה דינמית' : 'Dynamic Preview'}</span>
+                  <h3 className="text-lg font-black text-slate-900">
+                    {isRTL ? 'דירוג וציונים מוצעים' : 'Suggested Simulated Grades'}
+                  </h3>
+                </div>
+
+                <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
+                  {simulatedGrades.map((sim, index) => {
+                    const actualGrade = teamsGrades.find(t => t.TeamNumber === sim.TeamNumber);
+                    const diffGrade = actualGrade ? (sim.GRADE - actualGrade.GRADE) : 0;
+                    const diffRank = actualGrade ? (actualGrade.RANK - sim.RANK) : 0;
+
+                    return (
+                      <div 
+                        key={sim.TeamNumber} 
+                        className="bg-slate-50 border-2 border-slate-200 hover:border-slate-900 rounded-2xl p-4 transition-all"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="w-6 h-6 rounded-full bg-slate-900 text-white text-[10px] flex items-center justify-center font-black">
+                              {sim.RANK}
+                            </span>
+                            <span className="text-sm font-black text-slate-900">
+                              {isRTL ? 'קבוצה' : 'Team'} {sim.TeamNumber}
+                            </span>
+                          </div>
+                          
+                          <div className="text-right">
+                            <span className="text-lg font-black text-emerald-600 font-mono">
+                              {sim.GRADE}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Comparative stats to show weight changes impact */}
+                        <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 mt-2 pt-2 border-t border-slate-100">
+                          {actualGrade ? (
+                            <>
+                              <div className="flex items-center gap-1">
+                                <span>{isRTL ? 'קודם:' : 'Previous:'}</span>
+                                <span className="font-mono">{actualGrade.GRADE}</span>
+                                {diffGrade !== 0 && (
+                                  <span className={`font-mono font-black ${diffGrade > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                    ({diffGrade > 0 ? `+${diffGrade.toFixed(1)}` : diffGrade.toFixed(1)})
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <span>{isRTL ? 'שינוי דירוג:' : 'Rank Shift:'}</span>
+                                {diffRank === 0 ? (
+                                  <span className="text-slate-400 font-mono">0</span>
+                                ) : (
+                                  <span className={`font-mono font-black ${diffRank > 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                    {diffRank > 0 ? `▲ +${diffRank}` : `▼ ${diffRank}`}
+                                  </span>
+                                )}
+                              </div>
+                            </>
+                          ) : (
+                            <span>{isRTL ? 'חדש' : 'New'}</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* Help methodology and guidelines popup dialog */}
+      {showHelp && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-300">
+          <div className="bg-white rounded-3xl w-full max-w-2xl shadow-[8px_8px_0px_0px_rgba(0,0,0,0.15)] overflow-hidden flex flex-col max-h-[85vh] border-2 border-slate-900">
+            <div className="bg-indigo-950 px-6 py-4 flex items-center justify-between border-b-4 border-indigo-900">
+              <h3 className="font-black text-white text-lg tracking-wide uppercase flex items-center gap-2">
+                <HelpCircle className="text-indigo-400" />
+                {language === Language.HE ? 'מתודולוגיית חישוב והגדרות' : 'Grading Standards & Methodology'}
+              </h3>
+              <button 
+                onClick={() => setShowHelp(false)}
+                className="text-white hover:text-indigo-200 transition-colors bg-indigo-900 p-2 rounded-xl"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto space-y-4 text-slate-700 text-sm leading-relaxed" dir={language === Language.HE ? 'rtl' : 'ltr'}>
+              <h4 className="font-black text-slate-800 text-base">{language === Language.HE ? 'נוסחת החישוב היסודית' : 'Primary Mathematical Formula'}</h4>
+              <p className="bg-indigo-50 border border-indigo-150 p-3 rounded-xl font-mono text-[11px] text-indigo-900 font-bold leading-relaxed text-center">
+                Grade = (AvgAutoHit × WEIGHT_AUTO_HIT) + (AvgTeleopHit × WEIGHT_TELEOP_HIT) + (AvgParking × WEIGHT_PARKING) <br/>
+                + (AvgAutoMiss × WEIGHT_AUTO_MISS) + (AvgTeleopMiss × WEIGHT_TELEOP_MISS) + (AvgFouls × WEIGHT_FOULS)
+              </p>
+              
+              <h4 className="font-black text-slate-800 text-base mt-4">{language === Language.HE ? 'הסבר על הפרמטרים' : 'Key Factor Descriptions'}</h4>
+              <ul className="list-disc pl-5 pr-5 space-y-2">
+                <li>
+                  <strong>{language === Language.HE ? 'פגיעות אוטונומי/טלאופ:' : 'Autonomous/Teleop Hits:'}</strong>{' '}
+                  {language === Language.HE ? 'מדד לקצב ורמת הדיוק הכללית של קליעת הרובוט באיזורים הייעודיים.' : 'Averages calculated based on successful secure attempts per game.'}
+                </li>
+                <li>
+                  <strong>{language === Language.HE ? 'החטאות:' : 'Misses:'}</strong>{' '}
+                  {language === Language.HE ? 'משמש כקנס ישיר המרתיע רובוטים שקצב קליעתם המעשית גולש להחטאות.' : 'Provides direct penalties scaling with failed shots.'}
+                </li>
+                <li>
+                  <strong>{language === Language.HE ? 'חנייה מלאה:' : 'Parking:'}</strong>{' '}
+                  {language === Language.HE ? 'נקודות קבע מיוחסות לזריקת חנייה באזורי הבונוס.' : 'Values computed corresponding to autonomous and final parking areas.'}
+                </li>
+                <li>
+                  <strong>{language === Language.HE ? 'עבירות:' : 'Fouls:'}</strong>{' '}
+                  {language === Language.HE ? 'נזק יחסי מצבר עונות פאולים מסוגי שער, איסוף וחנייה.' : 'Deductions calculated based on active game rules fouls.'}
+                </li>
+              </ul>
+
+              <h4 className="font-black text-slate-800 text-base mt-4">{language === Language.HE ? 'מה קורה כשלוחצים שמירה?' : 'What Happens Upon Saving?'}</h4>
+              <p>
+                {language === Language.HE 
+                  ? 'לחיצה על כפתור שמירה מאחסנת את המשקלים החדשים קבוע במסד הנתונים Supabase בטבלה ייעודית, ומיד מנקה את כל הציונים הקודמים ומחשבת את כל הציונים והדירוגים מחדש של הקבוצות בענן!'
+                  : 'Saving writes configuration changes to Supabase instantly, clears outdated states, and triggers an exact full recalculation operation over the whole scouts registry.'}
+              </p>
+            </div>
+            
+            <div className="p-4 border-t-2 border-slate-100 bg-slate-50">
+              <button 
+                onClick={() => setShowHelp(false)}
+                className="w-full bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-3 rounded-xl transition-colors"
+              >
+                {language === Language.HE ? 'סגור' : 'Close'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Grade Details Modal */}
       {selectedGradeDetails && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">

@@ -101,9 +101,47 @@ CREATE TABLE auth_config (
     password TEXT
 );
 
--- 6. Disable RLS for all tables to allow migration and easy access (You can enable them later with specific policies)
+-- 6. Dynamic Grades Calculation Weights Table
+DROP TABLE IF EXISTS grade_calculation_config CASCADE;
+CREATE TABLE grade_calculation_config (
+    id INTEGER PRIMARY KEY DEFAULT 1,
+    "POINTS_AUTO_HIT" NUMERIC DEFAULT 7,
+    "POINTS_TELEOP_HIT" NUMERIC DEFAULT 5,
+    "POINTS_PARKING" NUMERIC DEFAULT 5,
+    "POINTS_AUTO_MISS" NUMERIC DEFAULT -1,
+    "POINTS_TELEOP_MISS" NUMERIC DEFAULT -1,
+    "POINTS_FAUL" NUMERIC DEFAULT -2,
+    CONSTRAINT single_config_row CHECK (id = 1)
+);
+
+-- Seed defaults
+INSERT INTO grade_calculation_config (id, "POINTS_AUTO_HIT", "POINTS_TELEOP_HIT", "POINTS_PARKING", "POINTS_AUTO_MISS", "POINTS_TELEOP_MISS", "POINTS_FAUL")
+VALUES (1, 7, 5, 5, -1, -1, -2)
+ON CONFLICT (id) DO NOTHING;
+
+-- 7. New Primary Grades Config Table
+DROP TABLE IF EXISTS grades_config CASCADE;
+CREATE TABLE grades_config (
+    id INTEGER PRIMARY KEY DEFAULT 1,
+    "POINTS_AUTO_HIT" NUMERIC DEFAULT 7,
+    "POINTS_TELEOP_HIT" NUMERIC DEFAULT 5,
+    "POINTS_PARKING" NUMERIC DEFAULT 5,
+    "POINTS_AUTO_MISS" NUMERIC DEFAULT -1,
+    "POINTS_TELEOP_MISS" NUMERIC DEFAULT -1,
+    "POINTS_FAUL" NUMERIC DEFAULT -2,
+    CONSTRAINT single_grades_config_row CHECK (id = 1)
+);
+
+-- Seed defaults the new table
+INSERT INTO grades_config (id, "POINTS_AUTO_HIT", "POINTS_TELEOP_HIT", "POINTS_PARKING", "POINTS_AUTO_MISS", "POINTS_TELEOP_MISS", "POINTS_FAUL")
+VALUES (1, 7, 5, 5, -1, -1, -2)
+ON CONFLICT (id) DO NOTHING;
+
+-- 8. Disable RLS for all tables to allow migration and easy access (You can enable them later with specific policies)
 ALTER TABLE scoutsmaster_ongoing DISABLE ROW LEVEL SECURITY;
 ALTER TABLE job_execution_logs DISABLE ROW LEVEL SECURITY;
 ALTER TABLE system_settings DISABLE ROW LEVEL SECURITY;
 ALTER TABLE teams_grades DISABLE ROW LEVEL SECURITY;
 ALTER TABLE auth_config DISABLE ROW LEVEL SECURITY;
+ALTER TABLE grade_calculation_config DISABLE ROW LEVEL SECURITY;
+ALTER TABLE grades_config DISABLE ROW LEVEL SECURITY;

@@ -3,10 +3,11 @@ import { createServer as createViteServer } from "vite";
 import cors from "cors";
 import fetch from "node-fetch";
 import path from "path";
-import { calculateTeamGrade } from "./lib/gradingEngine.ts";
+import { calculateTeamGrade, GRADING_WEIGHTS, updateGradingWeights } from "./lib/gradingEngine.ts";
 import type { TeamAggregatedData } from "./types.ts";
 import {ENV}  from "./constants.ts";
 import { supabase } from "./lib/supabase.ts";
+import postgres from "postgres";
 
 
 
@@ -112,7 +113,7 @@ async function startServer() {
   app.get("/api/health-check", async (req, res) => {
     try {
       const results: any = {};
-      const tables = ['scoutsmaster_ongoing', 'job_execution_logs', 'system_settings', 'teams_grades', 'auth_config'];
+      const tables = ['scoutsmaster_ongoing', 'job_execution_logs', 'system_settings', 'teams_grades', 'auth_config', 'grade_calculation_config', 'grades_config'];
       
       for (const table of tables) {
         const { error } = await supabase.from(table).select('*').limit(1);
@@ -489,6 +490,80 @@ async function startServer() {
     }
   });
 
+  app.get("/api/grading-config", async (req, res) => {
+    try {
+      // Primary search on grades_config
+      const { data, error } = await supabase
+        .from('grades_config')
+        .select('*')
+        .eq('id', 1)
+        .maybeSingle();
+      
+      if (error || !data) {
+        // Fallback to grade_calculation_config
+        const { data: legacyData } = await supabase
+          .from('grade_calculation_config')
+          .select('*')
+          .eq('id', 1)
+          .maybeSingle();
+        return res.json({ success: true, config: legacyData || GRADING_WEIGHTS });
+      }
+      res.json({ success: true, config: data });
+    } catch (err: any) {
+      console.error("Failed to fetch grading config:", err);
+      res.json({ success: true, config: GRADING_WEIGHTS });
+    }
+  });
+
+  app.post("/api/grading-config", async (req, res) => {
+    try {
+      const { POINTS_AUTO_HIT, POINTS_TELEOP_HIT, POINTS_PARKING, POINTS_AUTO_MISS, POINTS_TELEOP_MISS, POINTS_FAUL } = req.body;
+      
+      const updateData = {
+        id: 1,
+        POINTS_AUTO_HIT: Number(POINTS_AUTO_HIT !== undefined ? POINTS_AUTO_HIT : GRADING_WEIGHTS.POINTS_AUTO_HIT),
+        POINTS_TELEOP_HIT: Number(POINTS_TELEOP_HIT !== undefined ? POINTS_TELEOP_HIT : GRADING_WEIGHTS.POINTS_TELEOP_HIT),
+        POINTS_PARKING: Number(POINTS_PARKING !== undefined ? POINTS_PARKING : GRADING_WEIGHTS.POINTS_PARKING),
+        POINTS_AUTO_MISS: Number(POINTS_AUTO_MISS !== undefined ? POINTS_AUTO_MISS : GRADING_WEIGHTS.POINTS_AUTO_MISS),
+        POINTS_TELEOP_MISS: Number(POINTS_TELEOP_MISS !== undefined ? POINTS_TELEOP_MISS : GRADING_WEIGHTS.POINTS_TELEOP_MISS),
+        POINTS_FAUL: Number(POINTS_FAUL !== undefined ? POINTS_FAUL : GRADING_WEIGHTS.POINTS_FAUL),
+      };
+
+      // 1. Write to grades_config
+      const { error } = await supabase
+        .from('grades_config')
+        .upsert(updateData);
+
+      if (error) throw error;
+
+      // 2. Also write to legacy table for complete backwards compatibility
+      try {
+        await supabase.from('grade_calculation_config').upsert(updateData);
+      } catch (legacyErr) {
+        console.warn("Failed to update legacy calculation config (benign):", legacyErr);
+      }
+
+      await addLog({
+        rowTimestamp: 'Manual',
+        teamNumber: 'ALL',
+        action: 'updated',
+        details: `Grades calculation config saved. Active weights: AutoHit=${POINTS_AUTO_HIT}, TeleopHit=${POINTS_TELEOP_HIT}, Parking=${POINTS_PARKING}`
+      });
+
+      // Recalculate and rebuild grades upon saving
+      await updateTeamsGrades();
+
+      // Update local settings time
+      systemSettings.lastConsolidationTime = new Date().toISOString();
+      await persistSettingsToSupabase();
+
+      res.json({ success: true, message: "Weights successfully saved and grades recalculated!" });
+    } catch (err: any) {
+      console.error("Failed to save weights and recalculate:", err);
+      res.status(500).json({ error: err.message || "Failed to update weights" });
+    }
+  });
+
   app.post("/api/login", async (req, res) => {
     try {
       const { name, password } = req.body;
@@ -561,14 +636,58 @@ async function startServer() {
       console.log(`[Recalculate] Starting update for Supabase`);
       const consolidatedMap = new Map<string, TeamAggregatedData>();
 
-      // 1. Fetch ALL RAW DATA from Supabase
+      // 1. Fetch active configuration weights
+      let activeWeights = { ...GRADING_WEIGHTS };
+      try {
+        // Try grades_config first
+        const { data: configData, error: configError } = await supabase
+          .from('grades_config')
+          .select('*')
+          .eq('id', 1)
+          .maybeSingle();
+        
+        if (!configError && configData) {
+          activeWeights = {
+            POINTS_AUTO_HIT: Number(configData.POINTS_AUTO_HIT),
+            POINTS_TELEOP_HIT: Number(configData.POINTS_TELEOP_HIT),
+            POINTS_PARKING: Number(configData.POINTS_PARKING),
+            POINTS_AUTO_MISS: Number(configData.POINTS_AUTO_MISS),
+            POINTS_TELEOP_MISS: Number(configData.POINTS_TELEOP_MISS),
+            POINTS_FAUL: Number(configData.POINTS_FAUL),
+          };
+        } else {
+          // Try grade_calculation_config fallback
+          const { data: legacyData, error: legacyError } = await supabase
+            .from('grade_calculation_config')
+            .select('*')
+            .eq('id', 1)
+            .maybeSingle();
+          if (!legacyError && legacyData) {
+            activeWeights = {
+              POINTS_AUTO_HIT: Number(legacyData.POINTS_AUTO_HIT),
+              POINTS_TELEOP_HIT: Number(legacyData.POINTS_TELEOP_HIT),
+              POINTS_PARKING: Number(legacyData.POINTS_PARKING),
+              POINTS_AUTO_MISS: Number(legacyData.POINTS_AUTO_MISS),
+              POINTS_TELEOP_MISS: Number(legacyData.POINTS_TELEOP_MISS),
+              POINTS_FAUL: Number(legacyData.POINTS_FAUL),
+            };
+          }
+        }
+      } catch (err) {
+        console.warn("Could not load dynamic configuration weights, using defaults:", err);
+      }
+
+      // Synchronize in-memory standard defaults
+      updateGradingWeights(activeWeights);
+
+      // 2. Fetch ALL RAW DATA from Supabase
       const { data: rawData, error: fetchError } = await supabase
         .from('scoutsmaster_ongoing')
         .select('*');
       
       if (fetchError) throw fetchError;
 
-      // 2. Aggregate RAW DATA
+      // 3. Aggregate RAW DATA
       (rawData || []).forEach(match => {
         const recType = String(match.recordType || '').trim();
         if (recType && recType !== 'MATCH_COMPLETE' && recType !== 'INIT_MARKER') return;
@@ -628,9 +747,9 @@ async function startServer() {
         }
       });
 
-      // 3. Calculate full state locally
+      // 4. Calculate full state locally with loaded weights
       const teamsList = Array.from(consolidatedMap.values()).map(team => {
-        const { grade, ratio } = calculateTeamGrade(team);
+        const { grade, ratio } = calculateTeamGrade(team, activeWeights);
         return { ...team, GRADE: grade, RATIO: ratio }; 
       });
       teamsList.sort((a, b) => b.GRADE - a.GRADE);
@@ -688,11 +807,63 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
+  app.listen(PORT, "0.0.0.0", async () => {
     console.log(`Server running on http://localhost:${PORT}`);
+
+    // DDL creation for dynamic grades config
+    if (process.env.DATABASE_URL) {
+      try {
+        console.log("[DB Startup] Ensuring grades_config and grade_calculation_config tables exist...");
+        const sql_db = postgres(process.env.DATABASE_URL);
+        
+        // 1. Legacy Table
+        await sql_db.unsafe(`
+          CREATE TABLE IF NOT EXISTS grade_calculation_config (
+              id INTEGER PRIMARY KEY DEFAULT 1,
+              "POINTS_AUTO_HIT" NUMERIC DEFAULT 7,
+              "POINTS_TELEOP_HIT" NUMERIC DEFAULT 5,
+              "POINTS_PARKING" NUMERIC DEFAULT 5,
+              "POINTS_AUTO_MISS" NUMERIC DEFAULT -1,
+              "POINTS_TELEOP_MISS" NUMERIC DEFAULT -1,
+              "POINTS_FAUL" NUMERIC DEFAULT -2,
+              CONSTRAINT single_config_row CHECK (id = 1)
+          );
+        `);
+        await sql_db.unsafe(`
+          INSERT INTO grade_calculation_config (id, "POINTS_AUTO_HIT", "POINTS_TELEOP_HIT", "POINTS_PARKING", "POINTS_AUTO_MISS", "POINTS_TELEOP_MISS", "POINTS_FAUL")
+          VALUES (1, 7, 5, 5, -1, -1, -2)
+          ON CONFLICT (id) DO NOTHING;
+        `);
+
+        // 2. New Primary Table (grades_config)
+        await sql_db.unsafe(`
+          CREATE TABLE IF NOT EXISTS grades_config (
+              id INTEGER PRIMARY KEY DEFAULT 1,
+              "POINTS_AUTO_HIT" NUMERIC DEFAULT 7,
+              "POINTS_TELEOP_HIT" NUMERIC DEFAULT 5,
+              "POINTS_PARKING" NUMERIC DEFAULT 5,
+              "POINTS_AUTO_MISS" NUMERIC DEFAULT -1,
+              "POINTS_TELEOP_MISS" NUMERIC DEFAULT -1,
+              "POINTS_FAUL" NUMERIC DEFAULT -2,
+              CONSTRAINT single_grades_config_row CHECK (id = 1)
+          );
+        `);
+        await sql_db.unsafe(`
+          INSERT INTO grades_config (id, "POINTS_AUTO_HIT", "POINTS_TELEOP_HIT", "POINTS_PARKING", "POINTS_AUTO_MISS", "POINTS_TELEOP_MISS", "POINTS_FAUL")
+          VALUES (1, 7, 5, 5, -1, -1, -2)
+          ON CONFLICT (id) DO NOTHING;
+        `);
+
+        console.log("[DB Startup] grades_config and grade_calculation_config initialized successfully.");
+        await sql_db.end();
+      } catch (err) {
+        console.error("[DB Startup] Could not automatically run DDL check:", err);
+      }
+    }
+
     refreshSettingsFromSupabase().then(() => {
       refreshLogsFromSupabase().catch(err => 
-        console.error("[Logs] Initial fetch failed:", err)
+         console.error("[Logs] Initial fetch failed:", err)
       );
     }).catch(err => 
       console.error("[Settings] Initial fetch failed:", err)

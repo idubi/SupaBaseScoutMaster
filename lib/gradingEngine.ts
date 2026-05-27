@@ -14,12 +14,25 @@ export const GRADING_WEIGHTS = {
 };
 
 /**
+ * Updates the global default grading weights.
+ */
+export function updateGradingWeights(newWeights: any) {
+  if (!newWeights) return;
+  if (newWeights.POINTS_AUTO_HIT !== undefined) GRADING_WEIGHTS.POINTS_AUTO_HIT = Number(newWeights.POINTS_AUTO_HIT);
+  if (newWeights.POINTS_TELEOP_HIT !== undefined) GRADING_WEIGHTS.POINTS_TELEOP_HIT = Number(newWeights.POINTS_TELEOP_HIT);
+  if (newWeights.POINTS_PARKING !== undefined) GRADING_WEIGHTS.POINTS_PARKING = Number(newWeights.POINTS_PARKING);
+  if (newWeights.POINTS_AUTO_MISS !== undefined) GRADING_WEIGHTS.POINTS_AUTO_MISS = Number(newWeights.POINTS_AUTO_MISS);
+  if (newWeights.POINTS_TELEOP_MISS !== undefined) GRADING_WEIGHTS.POINTS_TELEOP_MISS = Number(newWeights.POINTS_TELEOP_MISS);
+  if (newWeights.POINTS_FAUL !== undefined) GRADING_WEIGHTS.POINTS_FAUL = Number(newWeights.POINTS_FAUL);
+}
+
+/**
  * Calculates a team's performance grade and hit/miss ratio based on aggregated data.
  * 
  * @param data The aggregated totals for a specific team.
  * @returns An object containing the calculated grade and ratio.
  */
-export function calculateTeamGrade(data: TeamAggregatedData): TeamGradeResult {
+export function calculateTeamGrade(data: TeamAggregatedData, weights = GRADING_WEIGHTS): TeamGradeResult {
   const {
     GAMES_COUNT,
     TOTAL_TELEOP_HIT,
@@ -45,12 +58,12 @@ export function calculateTeamGrade(data: TeamAggregatedData): TeamGradeResult {
 
   // 2. Calculate Grade using weights
   const grade = 
-    (avgAutoHit * GRADING_WEIGHTS.POINTS_AUTO_HIT) +
-    (avgTeleopHit * GRADING_WEIGHTS.POINTS_TELEOP_HIT) +
-    (avgAutoMiss * GRADING_WEIGHTS.POINTS_AUTO_MISS) +
-    (avgTeleopMiss * GRADING_WEIGHTS.POINTS_TELEOP_MISS) +
-    (avgFouls * GRADING_WEIGHTS.POINTS_FAUL) +
-    (avgParking * GRADING_WEIGHTS.POINTS_PARKING);
+    (avgAutoHit * (weights.POINTS_AUTO_HIT !== undefined ? weights.POINTS_AUTO_HIT : GRADING_WEIGHTS.POINTS_AUTO_HIT)) +
+    (avgTeleopHit * (weights.POINTS_TELEOP_HIT !== undefined ? weights.POINTS_TELEOP_HIT : GRADING_WEIGHTS.POINTS_TELEOP_HIT)) +
+    (avgAutoMiss * (weights.POINTS_AUTO_MISS !== undefined ? weights.POINTS_AUTO_MISS : GRADING_WEIGHTS.POINTS_AUTO_MISS)) +
+    (avgTeleopMiss * (weights.POINTS_TELEOP_MISS !== undefined ? weights.POINTS_TELEOP_MISS : GRADING_WEIGHTS.POINTS_TELEOP_MISS)) +
+    (avgFouls * (weights.POINTS_FAUL !== undefined ? weights.POINTS_FAUL : GRADING_WEIGHTS.POINTS_FAUL)) +
+    (avgParking * (weights.POINTS_PARKING !== undefined ? weights.POINTS_PARKING : GRADING_WEIGHTS.POINTS_PARKING));
 
   // 3. Calculate Tie-Breaker (Ratio)
   const totalHits = TOTAL_TELEOP_HIT + TOTAL_AUTONOMUS_HIT;
@@ -74,7 +87,7 @@ export function calculateTeamGrade(data: TeamAggregatedData): TeamGradeResult {
       avgTeleopMiss,
       avgFouls,
       avgParking,
-      weights: GRADING_WEIGHTS
+      weights
     }
   };
 }
