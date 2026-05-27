@@ -1522,7 +1522,16 @@ const AdminView: React.FC<AdminViewProps> = ({
                                     #{team.rank}
                                   </div>
                                 </td>
-                                <td className="py-4 px-6 font-black text-slate-900 border-r border-slate-200">{team.TeamNumber}</td>
+                                <td 
+                                  className="py-4 px-6 font-black text-slate-900 border-r border-slate-200 cursor-pointer hover:bg-slate-100 select-none"
+                                  onDoubleClick={() => {
+                                    setSelectedTeams([team.TeamNumber.toString()]);
+                                    setActiveTab('investigation');
+                                  }}
+                                  title={isRTL ? "לחיצה כפולה לחקירת קבוצה זו" : "Double click to investigate this team"}
+                                >
+                                  {team.TeamNumber}
+                                </td>
                                 <td className="py-4 px-6 font-bold text-slate-700 border-r border-slate-200">{team.GAMES_COUNT}</td>
                                 <td className="py-4 px-6 font-black text-emerald-600 border-r border-slate-200">
                                   <button onClick={() => setSelectedGradeDetails(team)} className="hover:underline focus:outline-none">
@@ -1599,7 +1608,16 @@ const AdminView: React.FC<AdminViewProps> = ({
                             <tbody>
                               {performanceComparisonData.map(team => (
                                 <tr key={team.team} className="border-b border-slate-200 hover:bg-slate-50 transition-colors">
-                                  <td className="py-4 px-6 font-black text-slate-900 border-r border-slate-200">{team.team}</td>
+                                  <td 
+                                    className="py-4 px-6 font-black text-slate-900 border-r border-slate-200 cursor-pointer hover:bg-slate-100 select-none"
+                                    onDoubleClick={() => {
+                                      setSelectedTeams([team.team.toString()]);
+                                      setActiveTab('investigation');
+                                    }}
+                                    title={isRTL ? "לחיצה כפולה לחקירת קבוצה זו" : "Double click to investigate this team"}
+                                  >
+                                    {team.team}
+                                  </td>
                                   <td className="py-4 px-6 font-bold text-emerald-600 border-r border-slate-200">
                                     <button onClick={() => setSelectedPerformanceDetails({team: team.team, category: 'shooting', data: team})} className="hover:underline focus:outline-none">
                                       {team.shooting}%
@@ -1779,8 +1797,33 @@ const AdminView: React.FC<AdminViewProps> = ({
                               <table className="w-full border-collapse bg-white text-black font-bold text-sm" dir={isRTL ? 'rtl' : 'ltr'}>
                                 <thead>
                                   <tr className="border-b-2 border-black">
-                                    <th className="p-2 bg-[#f3e8ff] border-e-2 border-black w-40 text-xs text-start">Heat Number</th>
-                                    <th colSpan={Math.max(1, sortedMatchRows.length)} className="p-2 text-center text-lg font-black">{t.match} {gameViewMatch}</th>
+                                    <th 
+                                      className="p-2 bg-[#f3e8ff] border-e-2 border-black w-40 text-xs text-start cursor-pointer hover:bg-violet-100 select-none transition-colors"
+                                      onDoubleClick={() => {
+                                        const matchTeams = sortedMatchRows
+                                          .map(row => row.teamScouted?.toString().trim())
+                                          .filter((num): num is string => !!num);
+                                        setCompareSelectedTeams(matchTeams);
+                                        setActiveTab('compare');
+                                      }}
+                                      title={isRTL ? "לחיצה כפולה להשוואת קבוצות ממקצה זה" : "Double-click to compare teams in this match"}
+                                    >
+                                      Heat Number
+                                    </th>
+                                    <th 
+                                      colSpan={Math.max(1, sortedMatchRows.length)} 
+                                      className="p-2 text-center text-lg font-black cursor-pointer hover:bg-indigo-50/50 select-none transition-colors"
+                                      onDoubleClick={() => {
+                                        const matchTeams = sortedMatchRows
+                                          .map(row => row.teamScouted?.toString().trim())
+                                          .filter((num): num is string => !!num);
+                                        setCompareSelectedTeams(matchTeams);
+                                        setActiveTab('compare');
+                                      }}
+                                      title={isRTL ? "לחיצה כפולה להשוואת קבוצות ממקצה זה" : "Double-click to compare teams in this match"}
+                                    >
+                                      {t.match} {gameViewMatch}
+                                    </th>
                                   </tr>
                                   <tr className="border-b-2 border-black">
                                     <th className="p-2 bg-[#f3e8ff] border-e-2 border-black text-xs text-start">Team</th>
