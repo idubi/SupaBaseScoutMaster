@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { AutoCycle, Language } from '../../types';
 import { AutoTranslation_EN, AutoTranslation_HE } from '../translations';
 import { Check, Plus, Minus, ArrowRight, Cpu, ArrowLeft, X } from 'lucide-react';
@@ -18,8 +18,8 @@ interface AutoFormProps {
   onZoneToggle: (t: string) => void;
   onLeaveToggle: () => void;
   onCycleUpdate: (id: string, d: number) => void;
-  onBallsChange: (d: number) => void;
-  onMissChange: (d: number) => void;
+  onBallsChange: (d: number, isAbsolute?: boolean) => void;
+  onMissChange: (d: number, isAbsolute?: boolean) => void;
   onGateToggle: () => void;
   onIntakeToggle: () => void;
   onTextChange: (text: string) => void;
@@ -32,6 +32,9 @@ interface AutoFormProps {
 const AutoForm: React.FC<AutoFormProps> = (props) => {
   const t = props.language === Language.HE ? AutoTranslation_HE : AutoTranslation_EN;
   const isRTL = props.language === Language.HE;
+  
+  const [editingField, setEditingField] = useState<'hit' | 'miss' | null>(null);
+  const [tempValue, setTempValue] = useState<string>('');
 
   const UniformCheckbox = ({ label, checked, onChange }: { label: string, checked: boolean, onChange: () => void }) => (
     <button 
@@ -123,7 +126,41 @@ const AutoForm: React.FC<AutoFormProps> = (props) => {
                <button onClick={() => props.onBallsChange(-1)} className="w-24 h-24 sm:w-28 sm:h-28 flex items-center justify-center bg-white rounded-3xl border-2 border-slate-200 text-slate-300 active:bg-slate-50 shadow-md transition-all transform active:scale-90">
                  <Minus size={40} strokeWidth={4} />
                </button>
-               <span className="text-5xl font-black text-slate-900 min-w-[4.5rem] text-center px-2">{props.ballsSide}</span>
+               {editingField === 'hit' ? (
+                 <input
+                   type="number"
+                   autoFocus
+                   value={tempValue}
+                   onChange={(e) => setTempValue(e.target.value)}
+                   onBlur={() => {
+                     const parsed = parseInt(tempValue, 10);
+                     if (!isNaN(parsed) && parsed >= 0) {
+                       props.onBallsChange(parsed, true);
+                     }
+                     setEditingField(null);
+                   }}
+                   onKeyDown={(e) => {
+                     if (e.key === 'Enter') {
+                       const parsed = parseInt(tempValue, 10);
+                       if (!isNaN(parsed) && parsed >= 0) {
+                         props.onBallsChange(parsed, true);
+                       }
+                       setEditingField(null);
+                     } else if (e.key === 'Escape') {
+                       setEditingField(null);
+                     }
+                   }}
+                   className="text-5xl font-black text-slate-900 w-[5rem] text-center bg-white border-2 border-indigo-300 rounded-xl outline-none py-1 focus:ring-2 focus:ring-indigo-300"
+                 />
+               ) : (
+                 <span 
+                   onClick={() => { setEditingField('hit'); setTempValue(props.ballsSide.toString()); }}
+                   className="text-5xl font-black text-slate-900 min-w-[4.5rem] text-center px-2 cursor-pointer hover:scale-105 active:scale-95 hover:opacity-85 transition-all"
+                   title={isRTL ? "לחץ להקלדת מספר" : "Click to type a number"}
+                 >
+                   {props.ballsSide}
+                 </span>
+               )}
                <button onClick={() => props.onBallsChange(1)} className="w-24 h-24 sm:w-28 sm:h-28 flex items-center justify-center bg-emerald-600 rounded-3xl border-4 border-emerald-500 text-white active:bg-emerald-700 shadow-xl shadow-emerald-600/20 transition-all transform active:scale-90">
                  <Plus size={40} strokeWidth={4} />
                </button>
@@ -136,7 +173,41 @@ const AutoForm: React.FC<AutoFormProps> = (props) => {
                <button onClick={() => props.onMissChange(-1)} className="w-24 h-24 sm:w-28 sm:h-28 flex items-center justify-center bg-white rounded-3xl border-2 border-red-100 text-slate-300 active:bg-red-50 shadow-md transition-all transform active:scale-90">
                  <Minus size={40} strokeWidth={4} />
                </button>
-               <span className="text-5xl font-black text-red-600 min-w-[4.5rem] text-center px-2">{props.ballsMissed}</span>
+               {editingField === 'miss' ? (
+                 <input
+                   type="number"
+                   autoFocus
+                   value={tempValue}
+                   onChange={(e) => setTempValue(e.target.value)}
+                   onBlur={() => {
+                     const parsed = parseInt(tempValue, 10);
+                     if (!isNaN(parsed) && parsed >= 0) {
+                       props.onMissChange(parsed, true);
+                     }
+                     setEditingField(null);
+                   }}
+                   onKeyDown={(e) => {
+                     if (e.key === 'Enter') {
+                       const parsed = parseInt(tempValue, 10);
+                       if (!isNaN(parsed) && parsed >= 0) {
+                         props.onMissChange(parsed, true);
+                       }
+                       setEditingField(null);
+                     } else if (e.key === 'Escape') {
+                       setEditingField(null);
+                     }
+                   }}
+                   className="text-5xl font-black text-red-600 w-[5rem] text-center bg-white border-2 border-red-300 rounded-xl outline-none py-1 focus:ring-2 focus:ring-red-300"
+                 />
+               ) : (
+                 <span 
+                   onClick={() => { setEditingField('miss'); setTempValue(props.ballsMissed.toString()); }}
+                   className="text-5xl font-black text-red-600 min-w-[4.5rem] text-center px-2 cursor-pointer hover:scale-105 active:scale-95 hover:opacity-85 transition-all"
+                   title={isRTL ? "לחץ להקלדת מספר" : "Click to type a number"}
+                 >
+                   {props.ballsMissed}
+                 </span>
+               )}
                <button onClick={() => props.onMissChange(1)} className="w-24 h-24 sm:w-28 sm:h-28 flex items-center justify-center bg-red-600 rounded-3xl border-4 border-red-500 text-white active:bg-red-700 shadow-xl shadow-red-600/20 transition-all transform active:scale-90">
                  <Plus size={40} strokeWidth={4} />
                </button>

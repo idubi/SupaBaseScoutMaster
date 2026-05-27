@@ -26,15 +26,18 @@ const AutoBinding: React.FC<AutoBindingProps> = ({ onNext, onBack, onLogout, ini
     setData(prev => ({ ...prev, leave: !prev.leave }));
   };
 
-  const handleBallsChange = (delta: number) => {
+  const handleBallsChange = (delta: number, isAbsolute?: boolean) => {
     setData(prev => ({ 
       ...prev, 
-      ballsSide: Math.max(0, prev.ballsSide + delta) 
+      ballsSide: isAbsolute ? Math.max(0, delta) : Math.max(0, prev.ballsSide + delta) 
     }));
   };
 
-  const handleMissChange = (delta: number) => {
-    setData(prev => ({ ...prev, ballsMissed: Math.max(0, prev.ballsMissed + delta) }));
+  const handleMissChange = (delta: number, isAbsolute?: boolean) => {
+    setData(prev => ({ 
+      ...prev, 
+      ballsMissed: isAbsolute ? Math.max(0, delta) : Math.max(0, prev.ballsMissed + delta) 
+    }));
   };
 
   const handleNext = () => {

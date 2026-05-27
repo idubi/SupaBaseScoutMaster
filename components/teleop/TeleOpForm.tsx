@@ -10,7 +10,7 @@ interface TeleOpFormProps {
   totalScore: number;
   onCheck: (key: string) => void;
   onToggleState: (key: string, value: any) => void;
-  onCounterChange: (key: string, delta: number) => void;
+  onCounterChange: (key: string, delta: number, isAbsolute?: boolean) => void;
   onComment: (v: string) => void;
   onBack: () => void;
   onNext: () => void;
@@ -44,8 +44,37 @@ const TeleOpForm: React.FC<TeleOpFormProps> = (props) => {
     );
   };
 
-  const MassiveCounter = ({ label, value, onAdd, onSub, theme = "emerald" }: { label: string, value: number, onAdd: () => void, onSub: () => void, theme?: "emerald" | "rose" }) => {
+  const MassiveCounter = ({ 
+    label, 
+    value, 
+    onAdd, 
+    onSub, 
+    onSet,
+    theme = "emerald" 
+  }: { 
+    label: string, 
+    value: number, 
+    onAdd: () => void, 
+    onSub: () => void, 
+    onSet: (val: number) => void,
+    theme?: "emerald" | "rose" 
+  }) => {
     const isRose = theme === "rose";
+    const [isEditing, setIsEditing] = React.useState(false);
+    const [tempVal, setTempVal] = React.useState(value.toString());
+
+    React.useEffect(() => {
+      setTempVal(value.toString());
+    }, [value]);
+
+    const handleCommit = () => {
+      const parsed = parseInt(tempVal, 10);
+      if (!isNaN(parsed) && parsed >= 0) {
+        onSet(parsed);
+      }
+      setIsEditing(false);
+    };
+
     return (
       <div className={`${isRose ? 'bg-red-50 border-red-100' : 'bg-slate-50 border-slate-100'} rounded-3xl border-2 p-4 flex flex-col items-center shadow-sm w-full`}>
         <span className={`font-black uppercase tracking-[0.3em] italic mb-3 text-center ${isRose ? 'text-red-600' : 'text-emerald-600'} ${isRTL ? 'text-xl' : 'text-xs'}`}>
@@ -55,9 +84,30 @@ const TeleOpForm: React.FC<TeleOpFormProps> = (props) => {
           <button onClick={onSub} className={`w-24 h-24 sm:w-28 sm:h-28 flex items-center justify-center bg-white rounded-3xl border-2 ${isRose ? 'border-red-100' : 'border-slate-200'} text-slate-300 active:bg-slate-50 shadow-md transition-all transform active:scale-90`}>
             <Minus size={40} strokeWidth={4} />
           </button>
-          <span className={`text-5xl font-black min-w-[4.5rem] text-center px-2 ${isRose ? 'text-red-600' : 'text-slate-900'}`}>
-            {value}
-          </span>
+          
+          {isEditing ? (
+            <input
+              type="number"
+              autoFocus
+              value={tempVal}
+              onChange={(e) => setTempVal(e.target.value)}
+              onBlur={handleCommit}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleCommit();
+                if (e.key === 'Escape') setIsEditing(false);
+              }}
+              className={`text-5xl font-black w-[5rem] text-center rounded-xl py-1 bg-white border-2 outline-none focus:ring-2 ${isRose ? 'text-red-600 border-red-300 focus:ring-red-300' : 'text-slate-900 border-indigo-300 focus:ring-indigo-300'}`}
+            />
+          ) : (
+            <span 
+              onClick={() => { setIsEditing(true); setTempVal(value.toString()); }}
+              className={`text-5xl font-black min-w-[4.5rem] text-center px-2 cursor-pointer hover:scale-105 active:scale-95 transition-all hover:opacity-80 ${isRose ? 'text-red-600' : 'text-slate-900'}`}
+              title={isRTL ? "לחץ להקלדת מספר" : "Click to type a number"}
+            >
+              {value}
+            </span>
+          )}
+
           <button onClick={onAdd} className={`w-24 h-24 sm:w-28 sm:h-28 flex items-center justify-center ${isRose ? 'bg-red-600 border-red-500' : 'bg-emerald-600 border-emerald-500'} rounded-3xl border-4 text-white active:brightness-90 shadow-xl transition-all transform active:scale-90`}>
             <Plus size={40} strokeWidth={4} />
           </button>
@@ -146,6 +196,7 @@ const TeleOpForm: React.FC<TeleOpFormProps> = (props) => {
             value={props.state.intakeCount} 
             onAdd={() => props.onCounterChange('intakeCount', 1)} 
             onSub={() => props.onCounterChange('intakeCount', -1)} 
+            onSet={(val) => props.onCounterChange('intakeCount', val, true)}
           />
           <MassiveCounter 
             label={t.miss} 
@@ -153,6 +204,7 @@ const TeleOpForm: React.FC<TeleOpFormProps> = (props) => {
             theme="rose"
             onAdd={() => props.onCounterChange('overflowCount', 1)} 
             onSub={() => props.onCounterChange('overflowCount', -1)} 
+            onSet={(val) => props.onCounterChange('overflowCount', val, true)}
           />
         </div>
 

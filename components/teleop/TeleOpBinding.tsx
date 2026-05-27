@@ -90,10 +90,10 @@ const TeleOpBinding: React.FC<TeleOpBindingProps> = ({ onNext, onBack, onLogout,
     onNext(finalData);
   };
 
-  const handleCounterChange = (key: string, delta: number) => {
+  const handleCounterChange = (key: string, delta: number, isAbsolute?: boolean) => {
     setState(prev => ({
       ...prev,
-      [key]: Math.max(0, (prev as any)[key] + delta)
+      [key]: isAbsolute ? Math.max(0, delta) : Math.max(0, (prev as any)[key] + delta)
     }));
   };
 
