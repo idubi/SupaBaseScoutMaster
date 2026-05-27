@@ -121,7 +121,7 @@ const AdminView: React.FC<AdminViewProps> = ({
   onUpdateSettings,
   onFetchGrades
 }) => {
-  const [activeTab, setActiveTab] = useState<'investigation' | 'compare' | 'game' | 'logs'>('investigation');
+  const [activeTab, setActiveTab] = useState<'investigation' | 'compare' | 'game'>('investigation');
   const [compareSubTab, setCompareSubTab] = useState<'ranking' | 'performance'>('ranking');
   const [selectedMatch, setSelectedMatch] = useState<string>('');
   const [isMatchDropdownOpen, setIsMatchDropdownOpen] = useState(false);
@@ -559,7 +559,7 @@ const AdminView: React.FC<AdminViewProps> = ({
       if (row.teleIntakeFoul === true) stats.foulIntake++;
       if (row.teleGateFoul === true) stats.foulGate++;
       if (row.teleParkingFoul === true) stats.foulPark++;
-      stats.foulTotal += (row.teleFoulCount || 0);
+      stats.foulTotal += (row.teleIntakeFoul === true ? 1 : 0) + (row.teleGateFoul === true ? 1 : 0) + (row.teleParkingFoul === true ? 1 : 0);
     });
 
     const avg = (val: number) => (val / total).toFixed(1);
@@ -631,7 +631,7 @@ const AdminView: React.FC<AdminViewProps> = ({
           hit: hit,
           miss: miss,
           ratio: totalBalls > 0 ? parseFloat(((hit / totalBalls) * 100).toFixed(1)) : 0,
-          fouls: row.teleFoulCount || 0,
+          fouls: (row.teleGateFoul === true ? 1 : 0) + (row.teleParkingFoul === true ? 1 : 0) + (row.teleIntakeFoul === true ? 1 : 0),
           gateFoul: row.teleGateFoul === true ? 1 : 0,
           parkFoul: row.teleParkingFoul === true ? 1 : 0,
           intakeFoul: row.teleIntakeFoul === true ? 1 : 0,
@@ -810,7 +810,7 @@ const AdminView: React.FC<AdminViewProps> = ({
         totalHits += h;
         totalMisses += m;
         autoHits += (r.autoBallHit || 0);
-        fouls += (r.teleFoulCount || 0);
+        fouls += (r.teleGateFoul === true ? 1 : 0) + (r.teleParkingFoul === true ? 1 : 0) + (r.teleIntakeFoul === true ? 1 : 0);
         
         // Behavioral proxy
         if (r.teleFieldAwareness) { behaviorScore++; fieldAwarenessCount++; }
@@ -885,12 +885,6 @@ const AdminView: React.FC<AdminViewProps> = ({
                 className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'game' ? 'bg-white text-slate-900 shadow-lg' : 'text-slate-400 hover:text-white'}`}
               >
                 {t.gameView}
-              </button>
-              <button 
-                onClick={() => setActiveTab('logs')}
-                className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'logs' ? 'bg-white text-slate-900 shadow-lg' : 'text-slate-400 hover:text-white'}`}
-              >
-                {t.processLogs}
               </button>
             </div>
           </div>
@@ -1893,217 +1887,6 @@ const AdminView: React.FC<AdminViewProps> = ({
               </div>
             )}
       </div>
-      {activeTab === 'logs' && (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="bg-white border-2 border-slate-900 rounded-[2rem] p-6 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600">
-                  <ScrollText size={20} />
-                </div>
-                <div>
-                  <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">{t.processLogs}</h2>
-                  <p className="text-xs text-slate-500 font-bold">{isRTL ? 'מעקב בזמן אמת אחר עיבודי מערכת אוטומטיים' : 'Real-time tracking of automatic system processing'}</p>
-                </div>
-              </div>
-              <div className={`px-4 py-2 rounded-xl flex items-center gap-4 border-2 ${autoCalcActive ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-red-50 border-red-500 text-red-700'}`}>
-                <div className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${autoCalcActive ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
-                  <span className="text-xs font-black uppercase tracking-widest">
-                    {isRTL 
-                      ? (autoCalcActive ? 'חישוב אוטומטי פעיל' : 'חישוב אוטומטי כבוי') 
-                      : (autoCalcActive ? 'Auto-Calc Active' : 'Auto-Calc Inactive')}
-                  </span>
-                  {autoCalcActive && secondsRemaining !== null && (
-                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100/50 px-2 py-0.5 rounded-lg flex items-center gap-1">
-                      <Clock size={10} />
-                      {isRTL ? `ריצה הבאה: ${secondsRemaining} ש'` : `Next Run: ${secondsRemaining}s`}
-                    </span>
-                  )}
-                  <button 
-                    onClick={() => onUpdateSettings({ isAutoCalcActive: !autoCalcActive })}
-                    className="ml-2 hover:underline font-bold text-[10px] text-slate-600"
-                  >
-                    {isRTL 
-                      ? (autoCalcActive ? '(הפסק)' : '(הפעל)') 
-                      : (autoCalcActive ? '(Disable)' : '(Enable)')}
-                  </button>
-                </div>
-                
-                <div className="w-px h-4 bg-slate-300" />
-
-                <button
-                  onClick={async () => {
-                    if (isClearing) return;
-                    setIsClearing(true);
-                    try {
-                      const res = await fetch('/api/trigger-calc', { method: 'POST' });
-                      if (res.ok) {
-                        // Refresh logs immediately
-                        const logsRes = await fetch('/api/process-logs');
-                        if (logsRes.ok) setLogs(await logsRes.json());
-                        alert(isRTL ? 'חישוב הושלם בהצלחה' : 'Calculation completed');
-                      } else {
-                        alert(isRTL ? 'שגיאה בחישוב' : 'Calculation failed');
-                      }
-                    } catch (e) {
-                      alert(isRTL ? 'שגיאה בתקשורת' : 'Connection error');
-                    } finally {
-                      setIsClearing(false);
-                    }
-                  }}
-                  disabled={isClearing}
-                  className="flex items-center gap-2 text-[10px] font-black uppercase tracking-wider hover:text-indigo-600 transition-colors disabled:opacity-50"
-                >
-                  <RefreshCw size={12} className={isClearing ? 'animate-spin' : ''} />
-                  {isRTL ? 'חשב עכשיו' : 'Run Now'}
-                </button>
-              </div>
-            </div>
-
-            {diagResult && (
-              <div className="mb-6 p-6 bg-slate-900 rounded-2xl border border-slate-700 animate-in zoom-in-95 duration-300">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-white font-black uppercase tracking-widest flex items-center gap-2">
-                    <AlertCircle size={18} className="text-indigo-400" />
-                    {t.diagnosticsTitle}
-                  </h3>
-                  <button 
-                    onClick={() => setDiagResult(null)}
-                    className="text-slate-500 hover:text-white transition-colors"
-                  >
-                    <X size={20} />
-                  </button>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-xl">
-                      <span className="text-xs font-bold text-slate-400 uppercase tracking-tighter">{t.diagnosticsStatus}</span>
-                      <span className={`text-xs font-black uppercase tracking-widest px-2 py-1 rounded-md ${diagResult.status === 'ok' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}`}>
-                        {diagResult.status === 'ok' ? t.diagnosticsHealthy : t.diagnosticsError}
-                      </span>
-                    </div>
-                    <div className="flex flex-col gap-1 p-3 bg-slate-800/50 rounded-xl">
-                      <span className="text-xs font-bold text-slate-400 uppercase tracking-tighter">{t.diagnosticsTarget}</span>
-                      <span className="text-[10px] font-mono text-slate-300 break-all">{diagResult.supabase_target || 'N/A'}</span>
-                    </div>
-                  </div>
-
-                  <div className="bg-slate-800/50 rounded-xl p-4">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-3 block">Table Health Check</span>
-                    <div className="space-y-2">
-                      {diagResult.database_health && Object.entries(diagResult.database_health).map(([table, status]: [string, any]) => (
-                        <div key={table} className="flex items-center justify-between text-xs">
-                          <span className="font-bold text-slate-400">{table}</span>
-                          <span className={`font-black uppercase tracking-[0.05em] ${status === 'Healthy' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                            {status === 'Healthy' ? t.diagnosticsHealthy : t.diagnosticsError}
-                          </span>
-                        </div>
-                      ))}
-                      {diagResult.error && (
-                        <p className="text-rose-400 text-[10px] font-bold mt-2">{diagResult.error}</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="flex items-center gap-4 mb-6">
-              <button
-                onClick={handleRunDiagnostics}
-                disabled={isDiagnosing}
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-700 transition-all disabled:opacity-50"
-              >
-                <div className={isDiagnosing ? 'animate-spin' : ''}>
-                  <RefreshCw size={14} />
-                </div>
-                {t.runDiagnostics}
-              </button>
-
-              <button
-                onClick={onSeed}
-                disabled={isSeeding}
-                className="flex items-center gap-2 px-4 py-2 bg-rose-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-rose-700 transition-all disabled:opacity-50"
-              >
-                {isSeeding ? (
-                   <RefreshCw size={14} className="animate-spin" />
-                ) : (
-                  <Database size={14} />
-                )}
-                {isRTL ? 'צור נתוני דוגמה' : 'Generate Samples'}
-              </button>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="border-b-2 border-slate-900">
-                    <th className="px-4 py-3 text-start font-black text-slate-900 uppercase tracking-widest text-[10px]">{t.logTimestamp}</th>
-                    <th className="px-4 py-3 text-start font-black text-slate-900 uppercase tracking-widest text-[10px]">{t.rowTimestamp}</th>
-                    <th className="px-4 py-3 text-start font-black text-slate-900 uppercase tracking-widest text-[10px]">{t.team}</th>
-                    <th className="px-4 py-3 text-start font-black text-slate-900 uppercase tracking-widest text-[10px]">{t.action}</th>
-                    <th className="px-4 py-3 text-start font-black text-slate-900 uppercase tracking-widest text-[10px]">{t.logDetails}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y border-b border-slate-200">
-                  {isLoadingLogs && logs.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="px-4 py-12 text-center">
-                        <div className="flex flex-col items-center gap-2">
-                          <RefreshCw size={24} className="animate-spin text-indigo-500" />
-                          <span className="text-sm font-bold text-slate-400">{isRTL ? 'טוען יומנים...' : 'Loading logs...'}</span>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : logs.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="px-4 py-12 text-center">
-                        <div className="flex flex-col items-center gap-2">
-                          <History size={24} className="text-slate-300" />
-                          <span className="text-sm font-bold text-slate-400">{isRTL ? 'אין יומנים זמינים' : 'No logs available'}</span>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    logs.map((log) => (
-                      <tr key={log.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <div className="flex items-center gap-2 text-slate-600">
-                            <Clock size={12} />
-                            <span className="font-mono text-[10px]">{new Date(log.timestamp).toLocaleTimeString()}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="font-mono text-[10px] text-slate-400">{log.rowTimestamp}</span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="bg-slate-900 text-white px-2 py-0.5 rounded text-[10px] font-black">{log.teamNumber}</span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest border-2 ${
-                            log.action === 'updated' 
-                              ? 'bg-emerald-50 text-emerald-600 border-emerald-600' 
-                              : log.action === 'skipped'
-                              ? 'bg-red-50 text-red-600 border-red-600'
-                              : 'bg-blue-50 text-blue-600 border-blue-600'
-                          }`}>
-                            {t[log.action as keyof typeof t] || log.action}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          <p className="text-[10px] font-bold text-slate-700 leading-snug">{log.details}</p>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
 
       {(activeTab as string) === 'config' && (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">

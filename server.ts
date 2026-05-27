@@ -715,8 +715,7 @@ async function startServer() {
         const gateFoul = parseNum(match.teleGateFoul);
         const parkingFoul = parseNum(match.teleParkingFoul);
         const intakeFoul = parseNum(match.teleIntakeFoul);
-        let fouls = gateFoul + parkingFoul + intakeFoul;
-        if (fouls === 0) fouls = parseNum(match.teleFoulCount);
+        const fouls = gateFoul + parkingFoul + intakeFoul;
 
         if (consolidatedMap.has(teamNumber)) {
           const existing = consolidatedMap.get(teamNumber)!;
