@@ -155,6 +155,79 @@ async function startServer() {
     }
   });
 
+  app.post("/api/admin/delete-stats", async (req, res) => {
+    try {
+      const { mode, selectedTeams, selectedGames } = req.body;
+      console.log(`[API] Deleting statistics. Mode: ${mode}, Teams:`, selectedTeams, `Games:`, selectedGames);
+
+      if (mode === 'full') {
+        // Mode 1: Full Delete
+        const { error: errOngoing } = await supabase.from('scoutsmaster_ongoing').delete().neq('sessionId', '_');
+        if (errOngoing) throw errOngoing;
+
+        const { error: errGrades } = await supabase.from('teams_grades').delete().neq('TeamNumber', '_');
+        if (errGrades) throw errGrades;
+
+        // Reset lastConsolidationTime in settings
+        systemSettings.lastConsolidationTime = null;
+        await persistSettingsToSupabase();
+
+        res.json({ success: true, message: "All game statistics deleted successfully" });
+      } else if (mode === 'selected') {
+        // Mode 2: Delete Selected Teams
+        if (!selectedTeams || !Array.isArray(selectedTeams) || selectedTeams.length === 0) {
+          return res.status(400).json({ error: "No teams selected for deletion" });
+        }
+
+        const teamList = selectedTeams.map(t => String(t).trim());
+
+        // 1. Delete in scoutsmaster_ongoing (where teamScouted is in list)
+        const { error: errOngoing } = await supabase
+          .from('scoutsmaster_ongoing')
+          .delete()
+          .in('teamScouted', teamList);
+        if (errOngoing) throw errOngoing;
+
+        // 2. Delete in teams_grades (where TeamNumber is in list)
+        const { error: errGrades } = await supabase
+          .from('teams_grades')
+          .delete()
+          .in('TeamNumber', teamList);
+        if (errGrades) throw errGrades;
+
+        res.json({ success: true, message: `Statistics for teams ${teamList.join(', ')} deleted successfully` });
+      } else if (mode === 'game') {
+        // Mode 3: Delete Selected Games
+        if (!selectedGames || !Array.isArray(selectedGames) || selectedGames.length === 0) {
+          return res.status(400).json({ error: "No games selected for deletion" });
+        }
+
+        const gameList = selectedGames.map(g => String(g).trim());
+
+        // 1. Delete in scoutsmaster_ongoing (where matchNumber is in list)
+        const { error: errOngoing } = await supabase
+          .from('scoutsmaster_ongoing')
+          .delete()
+          .in('matchNumber', gameList);
+        if (errOngoing) throw errOngoing;
+
+        // 2. Fully refresh all grades to reflect deleted games
+        await updateTeamsGrades();
+
+        // Reset lastConsolidationTime in settings to ensure fresh stats are processed on next check, or synced cleanly
+        systemSettings.lastConsolidationTime = null;
+        await persistSettingsToSupabase();
+
+        res.json({ success: true, message: `Statistics for games ${gameList.join(', ')} deleted successfully` });
+      } else {
+        res.status(400).json({ error: "Invalid deletion mode specified" });
+      }
+    } catch (err: any) {
+      console.error("[DeleteStats] Error:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.get("/api/process-logs", (req, res) => {
     res.json(processLogs);
   });

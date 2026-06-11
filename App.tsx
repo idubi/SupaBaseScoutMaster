@@ -22,7 +22,10 @@ import {
   Database,
   AlertCircle,
   Sliders,
-  HelpCircle
+  HelpCircle,
+  Search,
+  Trash2,
+  Check
 } from 'lucide-react';
 import {ENV}  from "./constants";
 
@@ -104,6 +107,113 @@ const App: React.FC = () => {
   });
   const [isSavingWeights, setIsSavingWeights] = useState(false);
   const [showWeightsHelp, setShowWeightsHelp] = useState(false);
+
+  // Deletion Management states
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [delMode, setDelMode] = useState<'full' | 'selected' | 'game'>('selected');
+  const [delSelectedTeams, setDelSelectedTeams] = useState<string[]>([]);
+  const [delSelectedGames, setDelSelectedGames] = useState<string[]>([]);
+  const [delSearchTerm, setDelSearchTerm] = useState('');
+  const [delGameSearchTerm, setDelGameSearchTerm] = useState('');
+  const [delStatus, setDelStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [delError, setDelError] = useState<string | null>(null);
+  const [delConfirmOpen, setDelConfirmOpen] = useState(false);
+  const [delConfirmInput, setDelConfirmInput] = useState('');
+  const [serverUniqueTeams, setServerUniqueTeams] = useState<string[]>([]);
+
+  const fetchUniqueTeamsForDelete = async () => {
+    try {
+      const response = await fetch('/api/teams');
+      if (response.ok) {
+        const data = await response.json();
+        if (Array.isArray(data)) {
+          setServerUniqueTeams(data);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch distinct teams:", err);
+    }
+  };
+
+  const handleCommitDelete = async () => {
+    setDelStatus('loading');
+    setDelError(null);
+
+    try {
+      const payload = {
+        mode: delMode,
+        selectedTeams: delMode === 'selected' ? delSelectedTeams : undefined,
+        selectedGames: delMode === 'game' ? delSelectedGames : undefined
+      };
+
+      const res = await fetch('/api/admin/delete-stats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        const errBody = await res.json();
+        throw new Error(errBody.error || 'Server returned an error status');
+      }
+
+      await res.json();
+      setDelStatus('success');
+      setDelSelectedTeams([]);
+      setDelSelectedGames([]);
+
+      // Recalculate grades after deletion to refresh DB scores
+      await handleRecalculate();
+      await fetchTeamsGrades();
+      await fetchHistory();
+
+      // Hide success toast after 4 seconds
+      setTimeout(() => {
+        setDelStatus('idle');
+      }, 4000);
+
+    } catch (err: any) {
+      console.error("Delete error:", err);
+      setDelStatus('error');
+      setDelError(err.message || 'An unexpected error occurred during delete');
+    }
+  };
+
+  const uniqueTeams = React.useMemo(() => {
+    if (serverUniqueTeams.length > 0) {
+      return serverUniqueTeams;
+    }
+
+    const historyTeams = history
+      .map(row => row.teamScouted?.toString().trim())
+      .filter((team): team is string => !!team && team !== '');
+    
+    const gradesTeams = (teamsGrades || [])
+      .map(team => team.TeamNumber?.toString().trim())
+      .filter((team): team is string => !!team && team !== '');
+
+    const combinedTeams = Array.from(new Set([...historyTeams, ...gradesTeams]));
+    
+    return combinedTeams.sort((a: string, b: string) => {
+      const numA = parseInt(a);
+      const numB = parseInt(b);
+      if (isNaN(numA) || isNaN(numB)) return a.localeCompare(b);
+      return numA - numB;
+    });
+  }, [history, teamsGrades, serverUniqueTeams]);
+
+  const uniqueMatches = React.useMemo(() => {
+    const list = history
+      .map(row => (row.matchNumber || row.gameNumber || '').toString().trim())
+      .filter((match): match is string => !!match && match !== '');
+    const combined = Array.from(new Set(list));
+    return combined.sort((a: string, b: string) => {
+      const numA = parseInt(a);
+      const numB = parseInt(b);
+      if (isNaN(numA) || isNaN(numB)) return a.localeCompare(b);
+      return numA - numB;
+    });
+  }, [history]);
 
   const fetchWeights = async () => {
     try {
@@ -963,7 +1073,7 @@ const App: React.FC = () => {
               <p className="text-slate-500 font-medium">System initialization and data management</p>
             </div>
  
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full mt-4 items-stretch">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 w-full mt-4 items-stretch">
               {/* Seed Data Card */}
               <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 flex flex-col items-center text-center h-full">
                 <div className="w-12 h-12 bg-indigo-100 rounded-2xl flex items-center justify-center text-indigo-600 mb-4">
@@ -1045,6 +1155,33 @@ const App: React.FC = () => {
                 >
                   <Sliders size={14} />
                   {isRTL ? 'עדכן הגדרות' : 'Configure Weights'}
+                </button>
+              </div>
+
+              {/* Delete Statistics Card */}
+              <div id="mgt-delete-stats-card" className="bg-slate-50 p-6 rounded-3xl border border-slate-200 flex flex-col items-center text-center h-full">
+                <div className="w-12 h-12 bg-rose-100 rounded-2xl flex items-center justify-center text-rose-600 mb-4">
+                  <Trash2 size={24} />
+                </div>
+                <h3 className="text-lg font-bold text-slate-800 mb-2">
+                  {isRTL ? 'מחיקת סטטיסטיקות' : 'Delete Statistics'}
+                </h3>
+                <p className="text-xs text-slate-500 mb-6 leading-relaxed">
+                  {isRTL 
+                    ? 'מחק לצמיתות נתוני משחקים או ציוני קבוצות מסוימות.' 
+                    : 'Permanently delete match records or specific team statistics.'}
+                </p>
+                <button
+                  id="btn-mgt-delete-stats"
+                  onClick={() => {
+                    setIsDeleteModalOpen(true);
+                    fetchUniqueTeamsForDelete();
+                    fetchHistory();
+                  }}
+                  className="w-full py-3 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all flex items-center justify-center gap-2 mt-auto bg-rose-600 hover:bg-rose-700 text-white shadow-lg active:scale-[0.98]"
+                >
+                  <Trash2 size={14} />
+                  {isRTL ? 'ניהול מחיקה' : 'Manage Deletes'}
                 </button>
               </div>
             </div>
@@ -1450,6 +1587,451 @@ const App: React.FC = () => {
           </motion.div>
         </div>
       )}
+
+      {isDeleteModalOpen && (
+        <div id="delete-stats-modal-overlay" className="fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <motion.div 
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-[2rem] shadow-2xl border-2 border-slate-900 p-6 sm:p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto relative text-slate-700"
+            dir={language === Language.HE ? 'rtl' : 'ltr'}
+          >
+            {/* Close Button */}
+            <button 
+              id="btn-close-delete-modal"
+              onClick={() => setIsDeleteModalOpen(false)}
+              className={`absolute top-6 ${language === Language.HE ? 'left-6' : 'right-6'} p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400 z-10`}
+            >
+              <X size={24} />
+            </button>
+
+            {/* Header */}
+            <div className="mb-6">
+              <span className="text-[10px] font-black uppercase text-rose-600 tracking-widest">
+                {language === Language.HE ? 'מחיקה של נתונים וסטטיסטיקות במערכת' : 'System Statistical Deletion'}
+              </span>
+              <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-2 mt-1">
+                <Trash2 className="text-rose-600 animate-pulse" />
+                {language === Language.HE ? 'מחיקת סטטיסטיקות וציוני קבוצות' : 'Delete Statistics'}
+              </h2>
+              <p className="text-xs text-slate-500 font-bold mt-1">
+                {language === Language.HE 
+                  ? 'מחק לצמיתות נתוני משחקים או ציוני קבוצה - לא ניתן לבטל פעולות מחיקה!' 
+                  : 'Permanently purge match details and calculations. This process is absolutely irreversible.'}
+              </p>
+            </div>
+
+            {/* Content Body */}
+            <div className="space-y-6">
+              {/* Deletion Mode selector cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <button
+                  type="button"
+                  onClick={() => setDelMode('selected')}
+                  className={`p-5 rounded-2xl border-2 text-start transition-all flex flex-col gap-2 cursor-pointer ${
+                    delMode === 'selected'
+                      ? 'border-indigo-600 bg-indigo-50/50 shadow-[4px_4px_0px_0px_rgba(79,70,229,1)] translate-x-[-2px] translate-y-[-2px]'
+                      : 'border-slate-300 bg-white hover:border-slate-400'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${delMode === 'selected' ? 'border-indigo-600' : 'border-slate-400'}`}>
+                      {delMode === 'selected' && <div className="w-2.5 h-2.5 rounded-full bg-indigo-600" />}
+                    </div>
+                    <span className="font-extrabold text-slate-900 text-sm">
+                      {language === Language.HE ? 'מחיקה לפי קבוצות נבחרות' : 'Delete Selected Teams'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 leading-relaxed ps-8 font-medium">
+                    {language === Language.HE
+                      ? 'מחק את כל נתוני המשחקים והציונים השייכים לקבוצות ספציפיות שתבחר מן הרשימה.'
+                      : 'Purges all statistics, reports, and grading computations belonging to specific teams.'}
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDelMode('game')}
+                  className={`p-5 rounded-2xl border-2 text-start transition-all flex flex-col gap-2 cursor-pointer ${
+                    delMode === 'game'
+                      ? 'border-amber-600 bg-amber-50/50 shadow-[4px_4px_0px_0px_rgba(245,158,11,1)] translate-x-[-2px] translate-y-[-2px]'
+                      : 'border-slate-300 bg-white hover:border-slate-400'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${delMode === 'game' ? 'border-amber-600' : 'border-slate-400'}`}>
+                      {delMode === 'game' && <div className="w-2.5 h-2.5 rounded-full bg-amber-600" />}
+                    </div>
+                    <span className="font-extrabold text-slate-900 text-sm">
+                      {language === Language.HE ? 'מחיקה לפי מספר משחק' : 'Delete Game by Number'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 leading-relaxed ps-8 font-medium">
+                    {language === Language.HE
+                      ? 'מחק את כל נתוני דוחות המשחק (בדרך כלל 4 מקצי סקאוטינג) השייכים למספר משחק ספציפי.'
+                      : 'Purges all scouting reports and team data (usually 4 records) belonging to a specific match/game number.'}
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDelMode('full')}
+                  className={`p-5 rounded-2xl border-2 text-start transition-all flex flex-col gap-2 cursor-pointer ${
+                    delMode === 'full'
+                      ? 'border-rose-600 bg-rose-50/50 shadow-[4px_4px_0px_0px_rgba(225,29,72,1)] translate-x-[-2px] translate-y-[-2px]'
+                      : 'border-slate-300 bg-white hover:border-slate-400'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${delMode === 'full' ? 'border-rose-600' : 'border-slate-400'}`}>
+                      {delMode === 'full' && <div className="w-2.5 h-2.5 rounded-full bg-rose-600" />}
+                    </div>
+                    <span className="font-extrabold text-slate-900 text-sm">
+                      {language === Language.HE ? 'מחיקה מלאה של כל הנתונים' : 'Full Reset / Wipe All'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 leading-relaxed ps-8 font-medium">
+                    {language === Language.HE
+                      ? 'מחיקת המערכת כולה: מוחק את כל נתוני המשחקים, ההיסטוריה והציונים של כל הקבוצות.'
+                      : 'Wipes the entire scouting database. Clears every single match record, scouter summary, and team score.'}
+                  </p>
+                </button>
+              </div>
+
+              {/* Checklist - visible only when 'selected' mode is active */}
+              {delMode === 'selected' && (
+                <div className="space-y-4 animate-in fade-in duration-300 bg-slate-50 p-4 rounded-3xl border border-slate-200">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <h4 className="text-sm font-black text-slate-900">
+                        {language === Language.HE ? 'בחר קבוצות למחיקה' : 'Select Teams to Delete'}
+                      </h4>
+                      <p className="text-xs text-slate-400 font-bold mt-1 font-mono">
+                        {language === Language.HE
+                          ? `נבחרו ${delSelectedTeams.length} קבוצות מתוך ${uniqueTeams.length}`
+                          : `${delSelectedTeams.length} of ${uniqueTeams.length} teams selected`}
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2.5 self-end sm:self-auto w-full sm:w-auto">
+                      <div className="relative flex-grow sm:w-48">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                        <input
+                          type="text"
+                          placeholder={language === Language.HE ? 'חפש מספר קבוצה...' : 'Filter team #...'}
+                          value={delSearchTerm}
+                          onChange={(e) => setDelSearchTerm(e.target.value)}
+                          className="w-full bg-white border-2 border-slate-300 focus:border-slate-900 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-900 font-bold outline-none transition-all"
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (delSelectedTeams.length === uniqueTeams.length) {
+                            setDelSelectedTeams([]);
+                          } else {
+                            setDelSelectedTeams([...uniqueTeams]);
+                          }
+                        }}
+                        className="whitespace-nowrap px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 rounded-xl text-[10px] font-black uppercase tracking-wider text-slate-700 transition-colors shadow-sm"
+                      >
+                        {delSelectedTeams.length === uniqueTeams.length 
+                          ? (language === Language.HE ? 'נקה הכל' : 'Clear All')
+                          : (language === Language.HE ? 'בחר הכל' : 'Select All')}
+                      </button>
+                    </div>
+                  </div>
+
+                  {uniqueTeams.length === 0 ? (
+                    <p className="text-slate-400 text-xs italic p-4 text-center border border-dashed border-slate-300 rounded-2xl bg-white font-bold">
+                      {language === Language.HE ? 'לא נמצאו קבוצות רשומות במאגר.' : 'No teams discovered in the registry.'}
+                    </p>
+                  ) : (uniqueTeams.filter(t => t.toLowerCase().includes(delSearchTerm.trim().toLowerCase())).length === 0) ? (
+                    <p className="text-slate-400 text-xs italic p-4 text-center border border-dashed border-slate-300 rounded-2xl bg-white font-bold">
+                      {language === Language.HE ? 'אין תוצאות התואמות לחיפוש.' : 'No teams match your search filter.'}
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 max-h-[180px] overflow-y-auto p-2 border border-slate-200 rounded-2xl bg-white">
+                      {uniqueTeams
+                        .filter(t => t.toLowerCase().includes(delSearchTerm.trim().toLowerCase()))
+                        .map((teamNum) => {
+                          const isChecked = delSelectedTeams.includes(teamNum);
+                          return (
+                            <button
+                              key={teamNum}
+                              type="button"
+                              onClick={() => {
+                                if (isChecked) {
+                                  setDelSelectedTeams(prev => prev.filter(t => t !== teamNum));
+                                } else {
+                                  setDelSelectedTeams(prev => [...prev, teamNum]);
+                                }
+                              }}
+                              className={`p-2.5 rounded-xl border flex items-center justify-between transition-all select-none font-bold text-xs text-slate-900 cursor-pointer ${
+                                isChecked
+                                  ? 'border-rose-500 bg-rose-50 text-rose-700 shadow-sm'
+                                  : 'border-slate-200 bg-white hover:border-slate-300'
+                              }`}
+                            >
+                              <span className="font-mono text-xs">{teamNum}</span>
+                              <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${isChecked ? 'bg-rose-500 border-rose-500 text-white' : 'border-slate-300 bg-white'}`}>
+                                {isChecked && <Check size={10} strokeWidth={4} />}
+                              </div>
+                            </button>
+                          );
+                        })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Checklist - visible only when 'game' mode is active */}
+              {delMode === 'game' && (
+                <div className="space-y-4 animate-in fade-in duration-300 bg-slate-50 p-4 rounded-3xl border border-slate-200">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <h4 className="text-sm font-black text-slate-900">
+                        {language === Language.HE ? 'בחר משחקים למחיקה' : 'Select Games to Delete'}
+                      </h4>
+                      <p className="text-xs text-slate-400 font-bold mt-1 font-mono">
+                        {language === Language.HE
+                          ? `נבחרו ${delSelectedGames.length} משחקים מתוך ${uniqueMatches.length}`
+                          : `${delSelectedGames.length} of ${uniqueMatches.length} games selected`}
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2.5 self-end sm:self-auto w-full sm:w-auto">
+                      <div className="relative flex-grow sm:w-48">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                        <input
+                          type="text"
+                          placeholder={language === Language.HE ? 'חפש מקצה/משחק...' : 'Filter game #...'}
+                          value={delGameSearchTerm}
+                          onChange={(e) => setDelGameSearchTerm(e.target.value)}
+                          className="w-full bg-white border-2 border-slate-300 focus:border-slate-900 rounded-xl pl-9 pr-3 py-1.5 text-xs text-slate-900 font-bold outline-none transition-all"
+                        />
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (delSelectedGames.length === uniqueMatches.length) {
+                            setDelSelectedGames([]);
+                          } else {
+                            setDelSelectedGames([...uniqueMatches]);
+                          }
+                        }}
+                        className="whitespace-nowrap px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 rounded-xl text-[10px] font-black uppercase tracking-wider text-slate-700 transition-colors shadow-sm"
+                      >
+                        {delSelectedGames.length === uniqueMatches.length 
+                          ? (language === Language.HE ? 'נקה הכל' : 'Clear All')
+                          : (language === Language.HE ? 'בחר הכל' : 'Select All')}
+                      </button>
+                    </div>
+                  </div>
+
+                  {uniqueMatches.length === 0 ? (
+                    <p className="text-slate-400 text-xs italic p-4 text-center border border-dashed border-slate-300 rounded-2xl bg-white font-bold">
+                      {language === Language.HE ? 'לא נמצאו משחקים רשומים במאגר.' : 'No games discovered in the registry.'}
+                    </p>
+                  ) : (uniqueMatches.filter(t => t.toLowerCase().includes(delGameSearchTerm.trim().toLowerCase())).length === 0) ? (
+                    <p className="text-slate-400 text-xs italic p-4 text-center border border-dashed border-slate-300 rounded-2xl bg-white font-bold">
+                      {language === Language.HE ? 'אין תוצאות התואמות לחיפוש.' : 'No games match your search filter.'}
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2 max-h-[180px] overflow-y-auto p-2 border border-slate-200 rounded-2xl bg-white">
+                      {uniqueMatches
+                        .filter(t => t.toLowerCase().includes(delGameSearchTerm.trim().toLowerCase()))
+                        .map((gameNum) => {
+                          const isChecked = delSelectedGames.includes(gameNum);
+                          return (
+                            <button
+                              key={gameNum}
+                              type="button"
+                              onClick={() => {
+                                if (isChecked) {
+                                  setDelSelectedGames(prev => prev.filter(t => t !== gameNum));
+                                } else {
+                                  setDelSelectedGames(prev => [...prev, gameNum]);
+                                }
+                              }}
+                              className={`p-2.5 rounded-xl border flex items-center justify-between transition-all select-none font-bold text-xs text-slate-900 cursor-pointer ${
+                                isChecked
+                                  ? 'border-amber-500 bg-amber-55 text-amber-950 shadow-sm'
+                                  : 'border-slate-200 bg-white hover:border-slate-300'
+                              }`}
+                            >
+                              <span className="font-mono text-xs">{language === Language.HE ? `משחק ${gameNum}` : `Game ${gameNum}`}</span>
+                              <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${isChecked ? 'bg-amber-500 border-amber-500 text-white' : 'border-slate-300 bg-white'}`}>
+                                {isChecked && <Check size={10} strokeWidth={4} />}
+                              </div>
+                            </button>
+                          );
+                        })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Status and Error indicators */}
+              {delStatus === 'error' && delError && (
+                <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-xs font-bold text-rose-800 flex items-center gap-2.5 animate-bounce">
+                  <AlertCircle size={16} className="text-rose-600 shrink-0" />
+                  <span>{delError}</span>
+                </div>
+              )}
+              {delStatus === 'success' && (
+                <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-800 flex items-center gap-2.5 animate-in fade-in">
+                  <Check size={16} className="text-emerald-500 shrink-0" />
+                  <span>
+                    {language === Language.HE 
+                      ? 'הנתונים נמחקו בהצלחה מהשרת והציונים חושבו מחדש!' 
+                      : 'Records successfully removed from Supabase and system updated!'}
+                  </span>
+                </div>
+              )}
+
+              {/* Primary action controls */}
+              <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setIsDeleteModalOpen(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-xs uppercase cursor-pointer"
+                >
+                  {language === Language.HE ? 'סגור' : 'Close'}
+                </button>
+
+                <button
+                  type="button"
+                  disabled={delStatus === 'loading' || (delMode === 'selected' && delSelectedTeams.length === 0) || (delMode === 'game' && delSelectedGames.length === 0)}
+                  onClick={() => setDelConfirmOpen(true)}
+                  className="px-6 py-2 bg-rose-600 hover:bg-rose-700 text-white font-black uppercase tracking-widest text-[10px] rounded-xl shadow-lg transition-all flex items-center gap-2 disabled:opacity-50"
+                >
+                  {delStatus === 'loading' ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      {language === Language.HE ? 'מוחק...' : 'Deleting...'}
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 size={12} />
+                      {language === Language.HE ? 'מחק נתונים לצמיתות' : 'Confirm Action'}
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Confirmation Modal */}
+      {delConfirmOpen && (
+        <div className="fixed inset-0 z-[120] bg-slate-900/85 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border-2 border-slate-900 rounded-[2rem] p-6 max-w-md w-full shadow-2xl text-slate-700 animate-in zoom-in-95 duration-200" dir={language === Language.HE ? 'rtl' : 'ltr'}>
+            <div className="flex items-center gap-3.5 mb-4 text-rose-600 font-bold">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 flex items-center justify-center shrink-0 text-rose-600">
+                <AlertCircle size={24} />
+              </div>
+              <div>
+                <h4 className="text-base font-black text-slate-950 uppercase">
+                  {language === Language.HE ? 'אישור מחיקה מוחלט' : 'Confirm Destructive Wipe'}
+                </h4>
+                <p className="text-[9px] text-rose-600 font-extrabold tracking-widest uppercase">
+                  {language === Language.HE ? 'פעולה בלתי הפיכה בהחלט' : 'Warning: Action is completely irreversible'}
+                </p>
+              </div>
+            </div>
+
+            <div className="text-xs space-y-3 leading-relaxed mb-6 font-semibold text-slate-600">
+              <p>
+                {language === Language.HE
+                  ? 'אתה עומד למחוק לצמיתות מידע רגיש ודוחות משחק ממסד הנתונים Supabase. פעולה זו לא ניתנת לשחזור בשום אופן!'
+                  : 'This will permanently remove match reports and performance grades from Supabase database tables.'}
+              </p>
+              
+              {delMode === 'full' ? (
+                <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-955 space-y-3">
+                  <p className="font-extrabold text-xs">
+                    {language === Language.HE 
+                      ? 'בחרת במחיקה מלאה של המערכת. כל הדוחות וציוני כלל הקבוצות יימחקו לחלוטין.'
+                      : 'You selected Full Reset / Wipe All. ALL team match records and aggregate scores will be wiped.'}
+                  </p>
+                  <p className="font-extrabold text-[10px]">
+                    {language === Language.HE 
+                      ? 'אנא הקלד את המילה DELETE (באותיות גדולות) לאישור המחיקה:' 
+                      : 'Please type the word DELETE to confirm absolute wipe:'}
+                  </p>
+                  <input
+                    type="text"
+                    value={delConfirmInput}
+                    onChange={(e) => setDelConfirmInput(e.target.value)}
+                    placeholder="DELETE"
+                    className="w-full bg-white border-2 border-slate-900 rounded-lg px-3 py-2 font-mono text-center text-xs font-black outline-none tracking-widest text-slate-900"
+                  />
+                </div>
+              ) : delMode === 'game' ? (
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-955 font-bold">
+                  <p className="font-extrabold text-xs">
+                    {language === Language.HE 
+                      ? `מחיקה לפי משחק: מוחק לצמיתות את כל נתוני המקצים עבור ${delSelectedGames.length} משחקים.`
+                      : `Targeted purge: Wiping all scouting reports and grades for ${delSelectedGames.length} selected games.`}
+                  </p>
+                  <div className="flex flex-wrap gap-1 mt-2.5 max-h-[100px] overflow-y-auto">
+                    {delSelectedGames.map(g => (
+                      <span key={g} className="px-2 py-0.5 bg-white border border-amber-300 rounded font-mono text-[10px] font-extrabold text-slate-800">
+                        {language === Language.HE ? `משחק ${g}` : `Game ${g}`}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-955">
+                  <p className="font-extrabold text-xs">
+                    {language === Language.HE 
+                      ? `מחיקה סלקטיבית: מוחק לצמיתות את הנתונים והציונים של ${delSelectedTeams.length} קבוצות.`
+                      : `Targeted purge: Wiping reports and grades for ${delSelectedTeams.length} selected teams.`}
+                  </p>
+                  <div className="flex flex-wrap gap-1 mt-2.5 max-h-[100px] overflow-y-auto">
+                    {delSelectedTeams.map(t => (
+                      <span key={t} className="px-2 py-0.5 bg-white border border-amber-300 rounded font-mono text-[10px] font-extrabold text-slate-800">{t}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => {
+                  setDelConfirmOpen(false);
+                  setDelConfirmInput('');
+                }}
+                className="px-4 py-2 border border-slate-300 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-black text-slate-600 transition-colors uppercase cursor-pointer"
+              >
+                {language === Language.HE ? 'ביטול' : 'Cancel'}
+              </button>
+
+              <button
+                type="button"
+                disabled={delMode === 'full' && delConfirmInput.trim().toUpperCase() !== 'DELETE'}
+                onClick={async () => {
+                  setDelConfirmOpen(false);
+                  setDelConfirmInput('');
+                  await handleCommitDelete();
+                  setIsDeleteModalOpen(false); // Close main modal upon success
+                }}
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-black rounded-xl text-xs uppercase tracking-widest cursor-pointer disabled:opacity-40"
+              >
+                {language === Language.HE ? 'אשר ומחק' : 'Confirm & Wipe'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Layout 
         user={user} 
         onLogout={handleLogout}
