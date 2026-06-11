@@ -454,7 +454,7 @@ const App: React.FC = () => {
     setPhase(ScoutingPhase.AUTH);
   };
 
-  const checkScoutingRestrictions = (historyData: SpreadsheetRow[], team: string, match: string, scouterName: string) => {
+  const checkScoutingRestrictions = (historyData: SpreadsheetRow[], team: string, match: string, scouterName: string): 'TEAM_EXISTS' | 'MATCH_FULL' | 'DUPLICATE_REPORT' | null => {
     const cleanTeam = String(team || '').trim();
     const cleanMatch = String(match || '').trim();
     const cleanName = String(scouterName || '').trim().toLowerCase();
@@ -469,7 +469,7 @@ const App: React.FC = () => {
 
     if (teamAlreadyScouted) return 'TEAM_EXISTS';
 
-    // 2. Check if this specific scouter already scouted this match/team (for backward compatibility/extra safety)
+    // 2. Check if this specific scouter already scouted this match/team
     const scouterAlreadyScouted = historyData.some(row => {
       const rowTeam = String(row.teamScouted || '').trim();
       const rowMatch = String(row.matchNumber || '').trim();
@@ -479,17 +479,6 @@ const App: React.FC = () => {
     });
     
     if (scouterAlreadyScouted) return 'DUPLICATE_REPORT';
-
-    // 3. Check how many unique teams are in this match (Max 4 teams per match)
-    const matchTeams = new Set(
-      historyData
-        .filter(row => row['recordType'] === 'MATCH_COMPLETE' && String(row.matchNumber || '').trim() === cleanMatch)
-        .map(row => String(row.teamScouted || '').trim())
-    );
-
-    if (matchTeams.size >= 4 && !matchTeams.has(cleanTeam)) {
-      return 'MATCH_FULL';
-    }
 
     return null;
   };
