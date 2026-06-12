@@ -228,6 +228,109 @@ async function startServer() {
     }
   });
 
+  app.get("/api/admin/users", async (req, res) => {
+    try {
+      const { data, error } = await supabase
+        .from('auth_config')
+        .select('id, name, role, password')
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+
+      // Group records by username
+      const groupedUsers: { [key: string]: { name: string, password: string, roles: string[] } } = {};
+      
+      for (const row of (data || [])) {
+        const name = (row.name || '').trim();
+        if (!name) continue;
+        
+        if (!groupedUsers[name]) {
+          groupedUsers[name] = {
+            name,
+            password: row.password || '',
+            roles: []
+          };
+        }
+        if (row.role) {
+          const cleanRole = row.role.trim().toLowerCase();
+          if (!groupedUsers[name].roles.includes(cleanRole)) {
+            groupedUsers[name].roles.push(cleanRole);
+          }
+        }
+      }
+
+      res.json({ success: true, users: Object.values(groupedUsers) });
+    } catch (err: any) {
+      console.error("[Users API] GET Error:", err);
+      res.status(500).json({ error: err.message || "Failed to fetch users" });
+    }
+  });
+
+  app.post("/api/admin/users", async (req, res) => {
+    try {
+      const { name, password, roles } = req.body;
+      const cleanName = (name || '').trim();
+      const cleanPassword = (password || '').trim();
+
+      if (!cleanName || !cleanPassword) {
+        return res.status(400).json({ error: "Name and password are required" });
+      }
+
+      if (!roles || !Array.isArray(roles) || roles.length === 0) {
+        return res.status(400).json({ error: "At least one role is required" });
+      }
+
+      // First, delete existing entries for this name to clean up either single role or both
+      const { error: deleteError } = await supabase
+        .from('auth_config')
+        .delete()
+        .eq('name', cleanName);
+
+      if (deleteError) throw deleteError;
+
+      // Insert new roles
+      const insertRows = roles.map(role => ({
+        name: cleanName,
+        password: cleanPassword,
+        role: role.trim().toLowerCase()
+      }));
+
+      const { error: insertError } = await supabase
+        .from('auth_config')
+        .insert(insertRows);
+
+      if (insertError) throw insertError;
+
+      res.json({ success: true, message: `User ${cleanName} updated successfully` });
+    } catch (err: any) {
+      console.error("[Users API] POST Error:", err);
+      res.status(500).json({ error: err.message || "Failed to upsert user" });
+    }
+  });
+
+  app.post("/api/admin/delete-user", async (req, res) => {
+    try {
+      const { name } = req.body;
+      const cleanName = (name || '').trim();
+
+      if (!cleanName) {
+        return res.status(400).json({ error: "User name is required for deletion" });
+      }
+
+      const { error } = await supabase
+        .from('auth_config')
+        .delete()
+        .eq('name', cleanName);
+
+      if (error) throw error;
+
+      res.json({ success: true, message: `User ${cleanName} deleted successfully` });
+    } catch (err: any) {
+      console.error("[Users API] DELETE Error:", err);
+      res.status(500).json({ error: err.message || "Failed to delete user" });
+    }
+  });
+
   app.get("/api/process-logs", (req, res) => {
     res.json(processLogs);
   });

@@ -25,7 +25,9 @@ import {
   HelpCircle,
   Search,
   Trash2,
-  Check
+  Check,
+  Users,
+  UserPlus
 } from 'lucide-react';
 import {ENV}  from "./constants";
 
@@ -120,6 +122,111 @@ const App: React.FC = () => {
   const [delConfirmOpen, setDelConfirmOpen] = useState(false);
   const [delConfirmInput, setDelConfirmInput] = useState('');
   const [serverUniqueTeams, setServerUniqueTeams] = useState<string[]>([]);
+
+  // User Management states
+  const [isUsersModalOpen, setIsUsersModalOpen] = useState(false);
+  const [usersList, setUsersList] = useState<Array<{ name: string; password: string; roles: string[] }>>([]);
+  const [mgmtUserName, setMgmtUserName] = useState('');
+  const [mgmtUserPassword, setMgmtUserPassword] = useState('');
+  const [mgmtSelectedRoles, setMgmtSelectedRoles] = useState<string[]>([]);
+  const [mgmtStatus, setMgmtStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [mgmtError, setMgmtError] = useState<string | null>(null);
+  const [mgmtSearchTerm, setMgmtSearchTerm] = useState('');
+  const [mgmtEditingUser, setMgmtEditingUser] = useState<string | null>(null);
+
+  const fetchUsers = async () => {
+    try {
+      const response = await fetch('/api/admin/users');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && Array.isArray(data.users)) {
+          setUsersList(data.users);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch users:", err);
+    }
+  };
+
+  const handleSaveUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mgmtUserName.trim() || !mgmtUserPassword.trim() || mgmtSelectedRoles.length === 0) {
+      setMgmtError(language === Language.HE ? 'נא למלא את כל השדות ולבחור לפחות תפקיד אחד' : 'Please check all inputs and select at least one role');
+      setMgmtStatus('error');
+      return;
+    }
+
+    setMgmtStatus('loading');
+    setMgmtError(null);
+
+    try {
+      const response = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: mgmtUserName.trim(),
+          password: mgmtUserPassword.trim(),
+          roles: mgmtSelectedRoles
+        })
+      });
+
+      if (response.ok) {
+        setMgmtStatus('success');
+        setMgmtUserName('');
+        setMgmtUserPassword('');
+        setMgmtSelectedRoles([]);
+        setMgmtEditingUser(null);
+        await fetchUsers();
+        // Reset success state after 2 seconds
+        setTimeout(() => setMgmtStatus('idle'), 2000);
+      } else {
+        const data = await response.json();
+        setMgmtError(data.error || 'Failed to save user');
+        setMgmtStatus('error');
+      }
+    } catch (err: any) {
+      setMgmtError(err.message || 'Error occurred');
+      setMgmtStatus('error');
+    }
+  };
+
+  const handleDeleteUser = async (userName: string) => {
+    try {
+      const response = await fetch('/api/admin/delete-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ name: userName })
+      });
+
+      if (response.ok) {
+        if (mgmtEditingUser === userName) {
+          setMgmtEditingUser(null);
+          setMgmtUserName('');
+          setMgmtUserPassword('');
+          setMgmtSelectedRoles([]);
+        }
+        await fetchUsers();
+      } else {
+        const data = await response.json();
+        alert(data.error || 'Failed to delete user');
+      }
+    } catch (err) {
+      console.error("Delete user error:", err);
+    }
+  };
+
+  const handleEditUserClick = (usr: { name: string; password: string; roles: string[] }) => {
+    setMgmtEditingUser(usr.name);
+    setMgmtUserName(usr.name);
+    setMgmtUserPassword(usr.password);
+    setMgmtSelectedRoles(usr.roles);
+    setMgmtError(null);
+    setMgmtStatus('idle');
+  };
 
   const fetchUniqueTeamsForDelete = async () => {
     try {
@@ -1073,7 +1180,7 @@ const App: React.FC = () => {
               <p className="text-slate-500 font-medium">System initialization and data management</p>
             </div>
  
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6 w-full mt-4 items-stretch">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full mt-4 items-stretch">
               {/* Seed Data Card */}
               <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 flex flex-col items-center text-center h-full">
                 <div className="w-12 h-12 bg-indigo-100 rounded-2xl flex items-center justify-center text-indigo-600 mb-4">
@@ -1182,6 +1289,32 @@ const App: React.FC = () => {
                 >
                   <Trash2 size={14} />
                   {isRTL ? 'ניהול מחיקה' : 'Manage Deletes'}
+                </button>
+              </div>
+
+              {/* Users/Managers Management Card */}
+              <div id="mgt-users-card" className="bg-slate-50 p-6 rounded-3xl border border-slate-200 flex flex-col items-center text-center h-full">
+                <div className="w-12 h-12 bg-blue-100 rounded-2xl flex items-center justify-center text-blue-600 mb-4">
+                  <Users size={24} />
+                </div>
+                <h3 className="text-lg font-bold text-slate-800 mb-2">
+                  {isRTL ? 'ניהול משתמשים' : 'User Management'}
+                </h3>
+                <p className="text-xs text-slate-500 mb-6 leading-relaxed">
+                  {isRTL 
+                    ? 'הוסף, שנה סיסמאות או מחק משתמשים ומנהלים במערכת.' 
+                    : 'Manage active system users, scouters, administrators and setup passwords.'}
+                </p>
+                <button
+                  id="btn-mgt-users"
+                  onClick={() => {
+                    setIsUsersModalOpen(true);
+                    fetchUsers();
+                  }}
+                  className="w-full py-3 rounded-xl font-black uppercase tracking-widest text-[10px] transition-all flex items-center justify-center gap-2 mt-auto bg-blue-600 hover:bg-blue-700 text-white shadow-lg active:scale-[0.98]"
+                >
+                  <Users size={14} />
+                  {isRTL ? 'ניהול משתמשים' : 'Manage Users'}
                 </button>
               </div>
             </div>
@@ -2029,6 +2162,310 @@ const App: React.FC = () => {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {isUsersModalOpen && (
+        <div id="users-management-modal-overlay" className="fixed inset-0 z-[110] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <motion.div 
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-[2rem] shadow-2xl border-2 border-slate-900 p-6 sm:p-8 max-w-5xl w-full max-h-[90vh] overflow-y-auto relative text-slate-700"
+            dir={language === Language.HE ? 'rtl' : 'ltr'}
+          >
+            {/* Close Button */}
+            <button 
+              id="btn-close-users-modal"
+              onClick={() => {
+                setIsUsersModalOpen(false);
+                setMgmtEditingUser(null);
+                setMgmtUserName('');
+                setMgmtUserPassword('');
+                setMgmtSelectedRoles([]);
+                setMgmtError(null);
+                setMgmtStatus('idle');
+              }}
+              className={`absolute top-6 ${language === Language.HE ? 'left-6' : 'right-6'} p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400 z-10`}
+            >
+              <X size={24} />
+            </button>
+
+            {/* Header */}
+            <div className="mb-6 mr-10 ml-10">
+              <span className="text-[10px] font-black uppercase text-blue-600 tracking-widest">
+                {language === Language.HE ? 'ניהול משתמשים והרשאות גישה' : 'Access Control & Credentials'}
+              </span>
+              <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight flex items-center gap-2 mt-1">
+                <Users className="text-blue-600 animate-pulse" />
+                {language === Language.HE ? 'ניהול משתמשים ומנהלים' : 'Users & Managers Management'}
+              </h2>
+              <p className="text-xs text-slate-500 font-bold mt-1">
+                {language === Language.HE 
+                  ? 'הוסף משתמשים חדשים, עדכן סיסמאות או הגדר תפקידים (צופה, מנהל או שניהם).' 
+                  : 'Configure user credentials, update passwords, and configure access levels.'}
+              </p>
+            </div>
+
+            {/* Main Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+              
+              {/* Left Column: Form (Takes 5 spans) */}
+              <div className="lg:col-span-5 bg-slate-50 border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-xs">
+                <h3 className="text-md font-extrabold text-slate-900 mb-4 flex items-center gap-2">
+                  <UserPlus size={18} className="text-blue-600" />
+                  {mgmtEditingUser 
+                    ? (language === Language.HE ? `עדכון משתמש: ${mgmtEditingUser}` : `Edit User: ${mgmtEditingUser}`)
+                    : (language === Language.HE ? 'הוספת משתמש חדש' : 'Create New User')
+                  }
+                </h3>
+
+                <form onSubmit={handleSaveUser} className="space-y-4">
+                  {/* Name field */}
+                  <div>
+                    <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">
+                      {language === Language.HE ? 'שם משתמש' : 'Username'}
+                    </label>
+                    <input
+                      type="text"
+                      disabled={!!mgmtEditingUser}
+                      placeholder={language === Language.HE ? 'הקלד שם משתמש...' : 'Type username...'}
+                      value={mgmtUserName}
+                      onChange={(e) => setMgmtUserName(e.target.value)}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 font-bold text-xs outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 disabled:opacity-55 disabled:bg-slate-100 transition-all text-slate-900"
+                    />
+                  </div>
+
+                  {/* Password field */}
+                  <div>
+                    <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">
+                      {language === Language.HE ? 'סיסמא' : 'Password'}
+                    </label>
+                    <input
+                      type="text"
+                      placeholder={language === Language.HE ? 'הקלד סיסמא לגישה...' : 'Type access password...'}
+                      value={mgmtUserPassword}
+                      onChange={(e) => setMgmtUserPassword(e.target.value)}
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 font-bold text-xs outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-all text-slate-900"
+                    />
+                  </div>
+
+                  {/* Role Checkboxes */}
+                  <div>
+                    <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-2">
+                      {language === Language.HE ? 'תפקידי משתמש במערכת' : 'Assigned Role(s)'}
+                    </label>
+                    
+                    <div className="space-y-2">
+                      {/* Scouter Role Toggle */}
+                      <label className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-100/55 transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={mgmtSelectedRoles.includes('scouter')}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setMgmtSelectedRoles([...mgmtSelectedRoles, 'scouter']);
+                            } else {
+                              setMgmtSelectedRoles(mgmtSelectedRoles.filter(r => r !== 'scouter'));
+                            }
+                          }}
+                          className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300"
+                        />
+                        <div>
+                          <p className="text-xs font-black text-slate-900">{language === Language.HE ? 'צופה (Scouter)' : 'Scouter Role'}</p>
+                          <p className="text-[10px] text-slate-400 font-bold">{language === Language.HE ? 'מילוי והגשה של דוחות סקאוטינג' : 'Fill and submit scout reports'}</p>
+                        </div>
+                      </label>
+
+                      {/* Admin/Manager Role Toggle */}
+                      <label className="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-100/55 transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={mgmtSelectedRoles.includes('admin')}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setMgmtSelectedRoles([...mgmtSelectedRoles, 'admin']);
+                            } else {
+                              setMgmtSelectedRoles(mgmtSelectedRoles.filter(r => r !== 'admin'));
+                            }
+                          }}
+                          className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300"
+                        />
+                        <div>
+                          <p className="text-xs font-black text-slate-900">{language === Language.HE ? 'מנהל (Manager)' : 'Manager Role'}</p>
+                          <p className="text-[10px] text-slate-400 font-bold">{language === Language.HE ? 'גישה ללוח הבקרה, הגדרות ומחיקה' : 'Dashboard control, configuration, dumps'}</p>
+                        </div>
+                      </label>
+                    </div>
+
+                    {/* Both notice */}
+                    {mgmtSelectedRoles.includes('scouter') && mgmtSelectedRoles.includes('admin') && (
+                      <p className="mt-2 text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded-lg p-2">
+                        {language === Language.HE 
+                          ? 'בחרת בשני התפקידים. המערכת תייצר שתי שורות נפרדות עבור המשתמש, מה שיאפשר לו להתחבר גם כצופה וגם כמנהל.' 
+                          : 'Dual selection: The database will register separate rows for dual login authorization.'}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Status & Error */}
+                  {mgmtError && (
+                    <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-rose-700 text-[10px] font-bold">
+                      {mgmtError}
+                    </div>
+                  )}
+
+                  {mgmtStatus === 'success' && (
+                    <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-700 text-[10px] font-bold flex items-center gap-1.5">
+                      <Check size={12} />
+                      {language === Language.HE ? 'המשתמש נשמר בהצלחה!' : 'User credentials saved successfully!'}
+                    </div>
+                  )}
+
+                  {/* Buttons */}
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      type="submit"
+                      disabled={mgmtStatus === 'loading'}
+                      className="flex-1 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs uppercase tracking-wider transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      {mgmtStatus === 'loading' 
+                        ? (language === Language.HE ? 'שומר...' : 'Saving...') 
+                        : (language === Language.HE ? 'שמור משתמש' : 'Save User')
+                      }
+                    </button>
+
+                    {mgmtEditingUser && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMgmtEditingUser(null);
+                          setMgmtUserName('');
+                          setMgmtUserPassword('');
+                          setMgmtSelectedRoles([]);
+                          setMgmtError(null);
+                          setMgmtStatus('idle');
+                        }}
+                        className="px-3 py-2 rounded-xl border border-slate-300 text-slate-500 hover:bg-slate-100 font-bold text-xs uppercase transition-colors cursor-pointer"
+                      >
+                        {language === Language.HE ? 'ביטול' : 'Cancel'}
+                      </button>
+                    )}
+                  </div>
+                </form>
+              </div>
+
+              {/* Right Column: User List (Takes 7 spans) */}
+              <div className="lg:col-span-7 space-y-4">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+                  <h3 className="text-md font-extrabold text-slate-900 flex items-center gap-2">
+                    <Users size={18} className="text-slate-600" />
+                    {language === Language.HE ? 'משתמשים רשומים במאגר' : 'Registered Database Users'}
+                    <span className="text-[10px] px-2 py-0.5 bg-slate-100 border border-slate-200 rounded-full font-bold text-slate-500">
+                      {usersList.length}
+                    </span>
+                  </h3>
+
+                  {/* List Search Bar */}
+                  <div className="relative max-w-xs w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 flex items-center gap-2 text-slate-700 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/10 transition-all">
+                    <Search size={14} className="text-slate-400 shrink-0" />
+                    <input
+                      type="text"
+                      placeholder={language === Language.HE ? 'חפש לפי שם...' : 'Search user...'}
+                      value={mgmtSearchTerm}
+                      onChange={(e) => setMgmtSearchTerm(e.target.value)}
+                      className="w-full bg-transparent text-xs font-bold outline-none text-slate-800"
+                    />
+                  </div>
+                </div>
+
+                {/* Users List Container */}
+                <div className="border border-slate-200 rounded-3xl max-h-[420px] overflow-y-auto divide-y divide-slate-100 bg-white">
+                  {usersList.filter(u => u.name.toLowerCase().includes(mgmtSearchTerm.toLowerCase())).length === 0 ? (
+                    <div className="p-10 text-center text-slate-400 font-bold text-xs leading-relaxed">
+                      {language === Language.HE ? 'לא נמצאו משתמשים התואמים את החיפוש' : 'No registered users match your terms'}
+                    </div>
+                  ) : (
+                    usersList
+                      .filter(u => u.name.toLowerCase().includes(mgmtSearchTerm.toLowerCase()))
+                      .map((usr) => {
+                        return (
+                          <div key={usr.name} className="p-4 flex items-center justify-between gap-4 hover:bg-slate-50/50 transition-colors">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-extrabold text-xs text-slate-900 truncate">
+                                  {usr.name}
+                                </span>
+                                
+                                {/* Roles Badges */}
+                                <div className="flex gap-1 animate-in fade-in">
+                                  {usr.roles.map(role => (
+                                    <span 
+                                      key={role} 
+                                      className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded border ${
+                                        role === 'admin' 
+                                          ? 'bg-purple-100 text-purple-700 border-purple-200' 
+                                          : 'bg-blue-100 text-blue-700 border-blue-200'
+                                      }`}
+                                    >
+                                      {role === 'admin' ? (language === Language.HE ? 'מנהל' : 'Manager') : (language === Language.HE ? 'צופה' : 'Scouter')}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                              <p className="text-[10px] font-semibold text-slate-400 mt-1">
+                                {language === Language.HE ? 'סיסמא:' : 'Password:'} <span className="font-mono text-slate-600 bg-slate-100 px-1 rounded-sm">{usr.password}</span>
+                              </p>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {/* Edit Action */}
+                              <button
+                                type="button"
+                                onClick={() => handleEditUserClick(usr)}
+                                className="p-2 border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 text-slate-600 rounded-xl transition-all cursor-pointer"
+                                title={language === Language.HE ? 'ערוך משתמש' : 'Edit Credentials'}
+                              >
+                                <Sliders size={12} />
+                              </button>
+
+                              {/* Delete Action */}
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteUser(usr.name)}
+                                className="p-2 border border-slate-200 bg-white hover:bg-rose-50 hover:border-rose-200 text-slate-400 hover:text-rose-600 rounded-xl transition-all cursor-pointer"
+                                title={language === Language.HE ? 'מחק משתמש' : 'Delete User'}
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                  )}
+                </div>
+              </div>
+
+            </div>
+
+            {/* Footer buttons */}
+            <div className="flex justify-end gap-3 pt-6 mt-6 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsUsersModalOpen(false);
+                  setMgmtEditingUser(null);
+                  setMgmtUserName('');
+                  setMgmtUserPassword('');
+                  setMgmtSelectedRoles([]);
+                  setMgmtError(null);
+                  setMgmtStatus('idle');
+                }}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl text-xs uppercase cursor-pointer"
+              >
+                {language === Language.HE ? 'סגור' : 'Close'}
+              </button>
+            </div>
+          </motion.div>
         </div>
       )}
 
