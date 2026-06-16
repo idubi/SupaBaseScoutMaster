@@ -27,7 +27,10 @@ import {
   Trash2,
   Check,
   Users,
-  UserPlus
+  UserPlus,
+  ChevronDown,
+  ChevronRight,
+  ShieldAlert
 } from 'lucide-react';
 import {ENV}  from "./constants";
 
@@ -105,7 +108,12 @@ const App: React.FC = () => {
     POINTS_PARKING: 5,
     POINTS_AUTO_MISS: -1,
     POINTS_TELEOP_MISS: -1,
-    POINTS_FAUL: -2,
+    POINTS_FAUL: 0, // General fallback
+
+    // Fine-grained fouls
+    POINTS_FOUL_GATE: -2,
+    POINTS_FOUL_PARKING: -2,
+    POINTS_FOUL_INTAKE: -2,
 
     // New Weights
     POINTS_OPEN_GATE: 2,
@@ -124,6 +132,7 @@ const App: React.FC = () => {
   });
   const [isSavingWeights, setIsSavingWeights] = useState(false);
   const [showWeightsHelp, setShowWeightsHelp] = useState(false);
+  const [activeWeightsCategory, setActiveWeightsCategory] = useState<string | null>('core');
 
   // Deletion Management states
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -349,7 +358,10 @@ const App: React.FC = () => {
             POINTS_PARKING: Number(body.config.POINTS_PARKING ?? 5),
             POINTS_AUTO_MISS: Number(body.config.POINTS_AUTO_MISS ?? -1),
             POINTS_TELEOP_MISS: Number(body.config.POINTS_TELEOP_MISS ?? -1),
-            POINTS_FAUL: Number(body.config.POINTS_FAUL ?? -2),
+            POINTS_FAUL: Number(body.config.POINTS_FAUL ?? 0),
+            POINTS_FOUL_GATE: Number(body.config.POINTS_FOUL_GATE ?? -2),
+            POINTS_FOUL_PARKING: Number(body.config.POINTS_FOUL_PARKING ?? -2),
+            POINTS_FOUL_INTAKE: Number(body.config.POINTS_FOUL_INTAKE ?? -2),
             POINTS_OPEN_GATE: Number(body.config.POINTS_OPEN_GATE ?? 2),
             POINTS_INTAKE_USED: Number(body.config.POINTS_INTAKE_USED ?? 2),
             POINTS_SHOOTING_SMALL: Number(body.config.POINTS_SHOOTING_SMALL ?? 2),
@@ -1539,395 +1551,580 @@ const App: React.FC = () => {
                 )}
 
                 {/* Grouped and Scrollable List of Sliders */}
-                <div className="flex-1 overflow-y-auto pr-3 space-y-6">
+                <div className="flex-1 overflow-y-auto pr-3 space-y-4">
 
                   {/* Section: Core Parameters */}
-                  <div className="space-y-4">
-                    <h4 className="text-xs font-black uppercase tracking-wider text-purple-600 border-b border-purple-100 pb-1 mt-1">
-                      {language === Language.HE ? 'פרמטרים ויכולות ליבה' : 'Core Parameters'}
-                    </h4>
-
-                    {/* Auto Hits */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                        <span>{language === Language.HE ? 'פגיעות אוטונומי (POINTS_AUTO_HIT)' : 'Auto Hits Weight'}</span>
-                        <input 
-                          type="number" min="-100" max="100" 
-                          value={sliderWeights.POINTS_AUTO_HIT}
-                          onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_AUTO_HIT: Number(e.target.value) })}
-                          className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveWeightsCategory(activeWeightsCategory === 'core' ? null : 'core')}
+                      className={`w-full flex items-center justify-between p-3.5 rounded-xl border transition-all select-none text-right ${
+                        activeWeightsCategory === 'core' 
+                          ? 'bg-purple-50/70 border-purple-200 text-purple-900 shadow-xs' 
+                          : 'bg-slate-50 border-slate-200/85 text-slate-700 hover:bg-slate-100/70'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`p-1.5 rounded-lg ${activeWeightsCategory === 'core' ? 'bg-purple-100 text-purple-700' : 'bg-slate-200/60 text-slate-500'}`}>
+                          <Sliders size={14} />
+                        </div>
+                        <div className="text-right">
+                          <h4 className="text-xs font-black uppercase tracking-tight">
+                            {language === Language.HE ? 'קליעות והחטאות' : 'Shoot Hit/Miss'}
+                          </h4>
+                          <p className="text-[10px] text-slate-400 font-bold mt-0.5">
+                            {language === Language.HE ? '6 משתני פגיעות והחטאות' : '6 shooting accuracy variables'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <ChevronRight 
+                          size={15} 
+                          className={`transition-all duration-300 ${
+                            activeWeightsCategory === 'core' ? 'rotate-90 text-purple-600' : 'text-slate-400'
+                          }`} 
                         />
                       </div>
-                      <input 
-                        type="range" min="-100" max="100" 
-                        value={sliderWeights.POINTS_AUTO_HIT}
-                        onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_AUTO_HIT: Number(e.target.value) })}
-                        className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                      />
-                    </div>
+                    </button>
 
-                    {/* Tele Hits */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                        <span>{language === Language.HE ? 'פגיעות טלאופ (POINTS_TELEOP_HIT)' : 'Teleop Hits Weight'}</span>
-                        <input 
-                          type="number" min="-100" max="100" 
-                          value={sliderWeights.POINTS_TELEOP_HIT}
-                          onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_TELEOP_HIT: Number(e.target.value) })}
-                          className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
-                        />
-                      </div>
-                      <input 
-                        type="range" min="-100" max="100" 
-                        value={sliderWeights.POINTS_TELEOP_HIT}
-                        onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_TELEOP_HIT: Number(e.target.value) })}
-                        className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                      />
-                    </div>
+                    {activeWeightsCategory === 'core' && (
+                      <div className="p-4 bg-white border border-slate-100 rounded-xl space-y-4 shadow-inner-sm animate-in fade-in slide-in-from-top-1 duration-200">
+                        {/* Auto Hits */}
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                            <span>{language === Language.HE ? 'פגיעות אוטונומי (POINTS_AUTO_HIT)' : 'Auto Hits Weight'}</span>
+                            <input 
+                              type="number" min="-100" max="100" 
+                              value={sliderWeights.POINTS_AUTO_HIT}
+                              onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_AUTO_HIT: Number(e.target.value) })}
+                              className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                            />
+                          </div>
+                          <input 
+                            type="range" min="-100" max="100" dir="ltr"
+                            value={sliderWeights.POINTS_AUTO_HIT}
+                            onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_AUTO_HIT: Number(e.target.value) })}
+                            className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                          />
+                        </div>
 
-                    {/* Parking */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                        <span>{language === Language.HE ? 'חנייה (POINTS_PARKING)' : 'Parking Weight'}</span>
-                        <input 
-                          type="number" min="-100" max="100" 
-                          value={sliderWeights.POINTS_PARKING}
-                          onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_PARKING: Number(e.target.value) })}
-                          className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
-                        />
-                      </div>
-                      <input 
-                        type="range" min="-100" max="100" 
-                        value={sliderWeights.POINTS_PARKING}
-                        onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_PARKING: Number(e.target.value) })}
-                        className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                      />
-                    </div>
+                        {/* Tele Hits */}
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                            <span>{language === Language.HE ? 'פגיעות טלאופ (POINTS_TELEOP_HIT)' : 'Teleop Hits Weight'}</span>
+                            <input 
+                              type="number" min="-100" max="100" 
+                              value={sliderWeights.POINTS_TELEOP_HIT}
+                              onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_TELEOP_HIT: Number(e.target.value) })}
+                              className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                            />
+                          </div>
+                          <input 
+                            type="range" min="-100" max="100" dir="ltr"
+                            value={sliderWeights.POINTS_TELEOP_HIT}
+                            onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_TELEOP_HIT: Number(e.target.value) })}
+                            className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                          />
+                        </div>
 
-                    {/* Auto Miss */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                        <span>{language === Language.HE ? 'החטאות אוטונומי (POINTS_AUTO_MISS)' : 'Auto Miss Weight'}</span>
-                        <input 
-                          type="number" min="-100" max="100" 
-                          value={sliderWeights.POINTS_AUTO_MISS}
-                          onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_AUTO_MISS: Number(e.target.value) })}
-                          className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
-                        />
-                      </div>
-                      <input 
-                        type="range" min="-100" max="100" 
-                        value={sliderWeights.POINTS_AUTO_MISS}
-                        onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_AUTO_MISS: Number(e.target.value) })}
-                        className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                      />
-                    </div>
+                        {/* Auto Miss */}
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                            <span>{language === Language.HE ? 'החטאות אוטונומי (POINTS_AUTO_MISS)' : 'Auto Miss Weight'}</span>
+                            <input 
+                              type="number" min="-100" max="100" 
+                              value={sliderWeights.POINTS_AUTO_MISS}
+                              onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_AUTO_MISS: Number(e.target.value) })}
+                              className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                            />
+                          </div>
+                          <input 
+                            type="range" min="-100" max="100" dir="ltr"
+                            value={sliderWeights.POINTS_AUTO_MISS}
+                            onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_AUTO_MISS: Number(e.target.value) })}
+                            className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                          />
+                        </div>
 
-                    {/* Tele Miss */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                        <span>{language === Language.HE ? 'החטאות טלאופ (POINTS_TELEOP_MISS)' : 'Teleop Miss Weight'}</span>
-                        <input 
-                          type="number" min="-100" max="100" 
-                          value={sliderWeights.POINTS_TELEOP_MISS}
-                          onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_TELEOP_MISS: Number(e.target.value) })}
-                          className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
-                        />
-                      </div>
-                      <input 
-                        type="range" min="-100" max="100" 
-                        value={sliderWeights.POINTS_TELEOP_MISS}
-                        onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_TELEOP_MISS: Number(e.target.value) })}
-                        className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                      />
-                    </div>
+                        {/* Tele Miss */}
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                            <span>{language === Language.HE ? 'החטאות טלאופ (POINTS_TELEOP_MISS)' : 'Teleop Miss Weight'}</span>
+                            <input 
+                              type="number" min="-100" max="100" 
+                              value={sliderWeights.POINTS_TELEOP_MISS}
+                              onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_TELEOP_MISS: Number(e.target.value) })}
+                              className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                            />
+                          </div>
+                          <input 
+                            type="range" min="-100" max="100" dir="ltr"
+                            value={sliderWeights.POINTS_TELEOP_MISS}
+                            onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_TELEOP_MISS: Number(e.target.value) })}
+                            className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                          />
+                        </div>
 
-                    {/* Fouls */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                        <span>{language === Language.HE ? 'עבירות (POINTS_FAUL)' : 'Fouls Weight'}</span>
-                        <input 
-                          type="number" min="-100" max="100" 
-                          value={sliderWeights.POINTS_FAUL}
-                          onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_FAUL: Number(e.target.value) })}
-                          className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
-                        />
+                        {/* Auto Small Zone Shooting */}
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                            <span>{language === Language.HE ? 'קליעה אוטונומית לאזור קטן (POINTS_SHOOTING_SMALL)' : 'Auto Small Zone Shooting'}</span>
+                            <input 
+                              type="number" min="-100" max="100" 
+                              value={sliderWeights.POINTS_SHOOTING_SMALL}
+                              onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_SHOOTING_SMALL: Number(e.target.value) })}
+                              className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                            />
+                          </div>
+                          <input 
+                            type="range" min="-100" max="100" dir="ltr"
+                            value={sliderWeights.POINTS_SHOOTING_SMALL}
+                            onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_SHOOTING_SMALL: Number(e.target.value) })}
+                            className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                          />
+                        </div>
+
+                        {/* Auto Big Zone Shooting */}
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                            <span>{language === Language.HE ? 'קליעה אוטונומית לאזור גדול (POINTS_SHOOTING_BIG)' : 'Auto Big Zone Shooting'}</span>
+                            <input 
+                              type="number" min="-100" max="100" 
+                              value={sliderWeights.POINTS_SHOOTING_BIG}
+                              onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_SHOOTING_BIG: Number(e.target.value) })}
+                              className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                            />
+                          </div>
+                          <input 
+                            type="range" min="-100" max="100" dir="ltr"
+                            value={sliderWeights.POINTS_SHOOTING_BIG}
+                            onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_SHOOTING_BIG: Number(e.target.value) })}
+                            className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                          />
+                        </div>
                       </div>
-                      <input 
-                        type="range" min="-100" max="100" 
-                        value={sliderWeights.POINTS_FAUL}
-                        onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_FAUL: Number(e.target.value) })}
-                        className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                      />
-                    </div>
+                    )}
                   </div>
 
-                  {/* Section: Auto Mechanics */}
-                  <div className="space-y-4">
-                    <h4 className="text-xs font-black uppercase tracking-wider text-purple-600 border-b border-purple-100 pb-1 mt-1">
-                      {language === Language.HE ? 'קליעות ומנגנונים אוטונומיים' : 'Auto Mechanics & Actions'}
-                    </h4>
-
-                    {/* Open Gate */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                        <span>{language === Language.HE ? 'פתיחת שער (POINTS_OPEN_GATE)' : 'Open Gate Weight'}</span>
-                        <input 
-                          type="number" min="-100" max="100" 
-                          value={sliderWeights.POINTS_OPEN_GATE}
-                          onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_OPEN_GATE: Number(e.target.value) })}
-                          className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                  {/* Section: Collect Capabilities */}
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveWeightsCategory(activeWeightsCategory === 'teleop' ? null : 'teleop')}
+                      className={`w-full flex items-center justify-between p-3.5 rounded-xl border transition-all select-none text-right ${
+                        activeWeightsCategory === 'teleop' 
+                          ? 'bg-purple-50/70 border-purple-200 text-purple-900 shadow-xs' 
+                          : 'bg-slate-50 border-slate-200/85 text-slate-700 hover:bg-slate-100/70'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`p-1.5 rounded-lg ${activeWeightsCategory === 'teleop' ? 'bg-purple-100 text-purple-700' : 'bg-slate-200/60 text-slate-500'}`}>
+                          <ClipboardList size={14} />
+                        </div>
+                        <div className="text-right">
+                          <h4 className="text-xs font-black uppercase tracking-tight">
+                            {language === Language.HE ? 'יכולות איסוף' : 'Collect Capabilities'}
+                          </h4>
+                          <p className="text-[10px] text-slate-400 font-bold mt-0.5">
+                            {language === Language.HE ? '3 משתני יכולות איסוף' : '3 collection variables'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <ChevronRight 
+                          size={15} 
+                          className={`transition-all duration-300 ${
+                            activeWeightsCategory === 'teleop' ? 'rotate-90 text-purple-600' : 'text-slate-400'
+                          }`} 
                         />
                       </div>
-                      <input 
-                        type="range" min="-100" max="100" 
-                        value={sliderWeights.POINTS_OPEN_GATE}
-                        onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_OPEN_GATE: Number(e.target.value) })}
-                        className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                      />
-                    </div>
+                    </button>
 
-                    {/* Intake Used */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                        <span>{language === Language.HE ? 'ביצוע אינטייק (POINTS_INTAKE_USED)' : 'Intake Used Weight'}</span>
-                        <input 
-                          type="number" min="-100" max="100" 
-                          value={sliderWeights.POINTS_INTAKE_USED}
-                          onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_INTAKE_USED: Number(e.target.value) })}
-                          className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
-                        />
+                    {activeWeightsCategory === 'teleop' && (
+                      <div className="p-4 bg-white border border-slate-100 rounded-xl space-y-4 shadow-inner-sm animate-in fade-in slide-in-from-top-1 duration-200">
+                        {/* Collection Human */}
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                            <span>{language === Language.HE ? 'איסוף שחקן אנושי (POINTS_COLLECTION_HUMAN)' : 'Human Player Collection'}</span>
+                            <input 
+                              type="number" min="-100" max="100" 
+                              value={sliderWeights.POINTS_COLLECTION_HUMAN}
+                              onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_COLLECTION_HUMAN: Number(e.target.value) })}
+                              className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                            />
+                          </div>
+                          <input 
+                            type="range" min="-100" max="100" dir="ltr"
+                            value={sliderWeights.POINTS_COLLECTION_HUMAN}
+                            onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_COLLECTION_HUMAN: Number(e.target.value) })}
+                            className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                          />
+                        </div>
+
+                        {/* Collection Floor */}
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                            <span>{language === Language.HE ? 'איסוף מהרצפה (POINTS_COLLECTION_FLOOR)' : 'Floor Collection Weight'}</span>
+                            <input 
+                              type="number" min="-100" max="100" 
+                              value={sliderWeights.POINTS_COLLECTION_FLOOR}
+                              onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_COLLECTION_FLOOR: Number(e.target.value) })}
+                              className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                            />
+                          </div>
+                          <input 
+                            type="range" min="-100" max="100" dir="ltr"
+                            value={sliderWeights.POINTS_COLLECTION_FLOOR}
+                            onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_COLLECTION_FLOOR: Number(e.target.value) })}
+                            className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                          />
+                        </div>
+
+                        {/* Intake Used */}
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                            <span>{language === Language.HE ? 'ביצוע אינטייק (POINTS_INTAKE_USED)' : 'Intake Used Weight'}</span>
+                            <input 
+                              type="number" min="-100" max="100" 
+                              value={sliderWeights.POINTS_INTAKE_USED}
+                              onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_INTAKE_USED: Number(e.target.value) })}
+                              className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                            />
+                          </div>
+                          <input 
+                            type="range" min="-100" max="100" dir="ltr"
+                            value={sliderWeights.POINTS_INTAKE_USED}
+                            onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_INTAKE_USED: Number(e.target.value) })}
+                            className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                          />
+                        </div>
                       </div>
-                      <input 
-                        type="range" min="-100" max="100" 
-                        value={sliderWeights.POINTS_INTAKE_USED}
-                        onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_INTAKE_USED: Number(e.target.value) })}
-                        className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Section: Teleop Capabilities */}
-                  <div className="space-y-4">
-                    <h4 className="text-xs font-black uppercase tracking-wider text-purple-600 border-b border-purple-100 pb-1 mt-1">
-                      {language === Language.HE ? 'יכולות קליעה ואיסוף' : 'Teleop & Collection Capabilities'}
-                    </h4>
-
-                    {/* Shooting Small */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                        <span>{language === Language.HE ? 'קליעה לאזור קטן (POINTS_SHOOTING_SMALL)' : 'Small Zone Shooting'}</span>
-                        <input 
-                          type="number" min="-100" max="100" 
-                          value={sliderWeights.POINTS_SHOOTING_SMALL}
-                          onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_SHOOTING_SMALL: Number(e.target.value) })}
-                          className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
-                        />
-                      </div>
-                      <input 
-                        type="range" min="-100" max="100" 
-                        value={sliderWeights.POINTS_SHOOTING_SMALL}
-                        onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_SHOOTING_SMALL: Number(e.target.value) })}
-                        className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                      />
-                    </div>
-
-                    {/* Shooting Big */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                        <span>{language === Language.HE ? 'קליעה לאזור גדול (POINTS_SHOOTING_BIG)' : 'Big Zone Shooting'}</span>
-                        <input 
-                          type="number" min="-100" max="100" 
-                          value={sliderWeights.POINTS_SHOOTING_BIG}
-                          onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_SHOOTING_BIG: Number(e.target.value) })}
-                          className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
-                        />
-                      </div>
-                      <input 
-                        type="range" min="-100" max="100" 
-                        value={sliderWeights.POINTS_SHOOTING_BIG}
-                        onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_SHOOTING_BIG: Number(e.target.value) })}
-                        className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                      />
-                    </div>
-
-                    {/* Collection Human */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                        <span>{language === Language.HE ? 'איסוף שחקן אנושי (POINTS_COLLECTION_HUMAN)' : 'Human Player Collection'}</span>
-                        <input 
-                          type="number" min="-100" max="100" 
-                          value={sliderWeights.POINTS_COLLECTION_HUMAN}
-                          onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_COLLECTION_HUMAN: Number(e.target.value) })}
-                          className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
-                        />
-                      </div>
-                      <input 
-                        type="range" min="-100" max="100" 
-                        value={sliderWeights.POINTS_COLLECTION_HUMAN}
-                        onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_COLLECTION_HUMAN: Number(e.target.value) })}
-                        className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                      />
-                    </div>
-
-                    {/* Collection Floor */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                        <span>{language === Language.HE ? 'איסוף מהרצפה (POINTS_COLLECTION_FLOOR)' : 'Floor Collection Weight'}</span>
-                        <input 
-                          type="number" min="-100" max="100" 
-                          value={sliderWeights.POINTS_COLLECTION_FLOOR}
-                          onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_COLLECTION_FLOOR: Number(e.target.value) })}
-                          className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
-                        />
-                      </div>
-                      <input 
-                        type="range" min="-100" max="100" 
-                        value={sliderWeights.POINTS_COLLECTION_FLOOR}
-                        onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_COLLECTION_FLOOR: Number(e.target.value) })}
-                        className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                      />
-                    </div>
+                    )}
                   </div>
 
                   {/* Section: Driver Skill Traits */}
-                  <div className="space-y-4">
-                    <h4 className="text-xs font-black uppercase tracking-wider text-purple-600 border-b border-purple-100 pb-1 mt-1">
-                      {language === Language.HE ? 'מיומנות ותכונות נהג' : 'Driver Skill Trait Weights'}
-                    </h4>
-
-                    {/* Driver Awareness */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                        <span>{language === Language.HE ? 'מודעות שטח (POINTS_DRIVER_AWARENESS)' : 'Field Awareness Weight'}</span>
-                        <input 
-                          type="number" min="-100" max="100" 
-                          value={sliderWeights.POINTS_DRIVER_AWARENESS}
-                          onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_DRIVER_AWARENESS: Number(e.target.value) })}
-                          className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveWeightsCategory(activeWeightsCategory === 'driver' ? null : 'driver')}
+                      className={`w-full flex items-center justify-between p-3.5 rounded-xl border transition-all select-none text-right ${
+                        activeWeightsCategory === 'driver' 
+                          ? 'bg-purple-50/70 border-purple-200 text-purple-900 shadow-xs' 
+                          : 'bg-slate-50 border-slate-200/85 text-slate-700 hover:bg-slate-100/70'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`p-1.5 rounded-lg ${activeWeightsCategory === 'driver' ? 'bg-purple-100 text-purple-700' : 'bg-slate-200/60 text-slate-500'}`}>
+                          <Users size={14} />
+                        </div>
+                        <div className="text-right">
+                          <h4 className="text-xs font-black uppercase tracking-tight">
+                            {language === Language.HE ? 'מיומנות ותכונות נהג' : 'Driver Skill Trait Weights'}
+                          </h4>
+                          <p className="text-[10px] text-slate-400 font-bold mt-0.5">
+                            {language === Language.HE ? '9 משתני ביצועי נהיגה וכלי' : '9 driving/robot performance variables'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <ChevronRight 
+                          size={15} 
+                          className={`transition-all duration-300 ${
+                            activeWeightsCategory === 'driver' ? 'rotate-90 text-purple-600' : 'text-slate-400'
+                          }`} 
                         />
                       </div>
-                      <input 
-                        type="range" min="-100" max="100" 
-                        value={sliderWeights.POINTS_DRIVER_AWARENESS}
-                        onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_DRIVER_AWARENESS: Number(e.target.value) })}
-                        className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                      />
-                    </div>
+                    </button>
+ 
+                    {activeWeightsCategory === 'driver' && (
+                      <div className="p-4 bg-white border border-slate-100 rounded-xl space-y-4 shadow-inner-sm animate-in fade-in slide-in-from-top-1 duration-200">
+                        {/* Parking */}
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                            <span>{language === Language.HE ? 'חנייה (POINTS_PARKING)' : 'Parking Weight'}</span>
+                            <input 
+                              type="number" min="-100" max="100" 
+                              value={sliderWeights.POINTS_PARKING}
+                              onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_PARKING: Number(e.target.value) })}
+                              className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                            />
+                          </div>
+                          <input 
+                            type="range" min="-100" max="100" dir="ltr"
+                            value={sliderWeights.POINTS_PARKING}
+                            onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_PARKING: Number(e.target.value) })}
+                            className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                          />
+                        </div>
 
-                    {/* Driver Success */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                        <span>{language === Language.HE ? 'הצלחה כללית (POINTS_DRIVER_SUCCESS)' : 'Overall Success Weight'}</span>
-                        <input 
-                          type="number" min="-100" max="100" 
-                          value={sliderWeights.POINTS_DRIVER_SUCCESS}
-                          onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_DRIVER_SUCCESS: Number(e.target.value) })}
-                          className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                        {/* Open Gate */}
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                            <span>{language === Language.HE ? 'פתיחת שער (POINTS_OPEN_GATE)' : 'Open Gate Weight'}</span>
+                            <input 
+                              type="number" min="-100" max="100" 
+                              value={sliderWeights.POINTS_OPEN_GATE}
+                              onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_OPEN_GATE: Number(e.target.value) })}
+                              className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                            />
+                          </div>
+                          <input 
+                            type="range" min="-100" max="100" dir="ltr"
+                            value={sliderWeights.POINTS_OPEN_GATE}
+                            onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_OPEN_GATE: Number(e.target.value) })}
+                            className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                          />
+                        </div>
+
+                        {/* Driver Awareness */}
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                            <span>{language === Language.HE ? 'מודעות שטח (POINTS_DRIVER_AWARENESS)' : 'Field Awareness Weight'}</span>
+                            <input 
+                              type="number" min="-100" max="100" 
+                              value={sliderWeights.POINTS_DRIVER_AWARENESS}
+                              onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_DRIVER_AWARENESS: Number(e.target.value) })}
+                              className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                            />
+                          </div>
+                          <input 
+                            type="range" min="-100" max="100" dir="ltr"
+                            value={sliderWeights.POINTS_DRIVER_AWARENESS}
+                            onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_DRIVER_AWARENESS: Number(e.target.value) })}
+                            className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                          />
+                        </div>
+
+                        {/* Driver Success */}
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                            <span>{language === Language.HE ? 'הצלחה כללית (POINTS_DRIVER_SUCCESS)' : 'Overall Success Weight'}</span>
+                            <input 
+                              type="number" min="-100" max="100" 
+                              value={sliderWeights.POINTS_DRIVER_SUCCESS}
+                              onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_DRIVER_SUCCESS: Number(e.target.value) })}
+                              className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                            />
+                          </div>
+                          <input 
+                            type="range" min="-100" max="100" dir="ltr"
+                            value={sliderWeights.POINTS_DRIVER_SUCCESS}
+                            onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_DRIVER_SUCCESS: Number(e.target.value) })}
+                            className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                          />
+                        </div>
+
+                        {/* Driver Rebound */}
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                            <span>{language === Language.HE ? 'כדור חוזר מהיר (POINTS_DRIVER_REBOUND)' : 'Fast Rebound Weight'}</span>
+                            <input 
+                              type="number" min="-100" max="100" 
+                              value={sliderWeights.POINTS_DRIVER_REBOUND}
+                              onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_DRIVER_REBOUND: Number(e.target.value) })}
+                              className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                            />
+                          </div>
+                          <input 
+                            type="range" min="-100" max="100" dir="ltr"
+                            value={sliderWeights.POINTS_DRIVER_REBOUND}
+                            onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_DRIVER_REBOUND: Number(e.target.value) })}
+                            className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                          />
+                        </div>
+
+                        {/* Driver Late */}
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                            <span>{language === Language.HE ? 'תרגום מאוחר (POINTS_DRIVER_LATE)' : 'Late Translation Penalty'}</span>
+                            <input 
+                              type="number" min="-100" max="100" 
+                              value={sliderWeights.POINTS_DRIVER_LATE}
+                              onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_DRIVER_LATE: Number(e.target.value) })}
+                              className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                            />
+                          </div>
+                          <input 
+                            type="range" min="-100" max="100" dir="ltr"
+                            value={sliderWeights.POINTS_DRIVER_LATE}
+                            onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_DRIVER_LATE: Number(e.target.value) })}
+                            className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                          />
+                        </div>
+
+                        {/* Driver Frozen */}
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                            <span>{language === Language.HE ? 'רובוט קפוא (POINTS_DRIVER_FROZEN)' : 'Robot Frozen Penalty'}</span>
+                            <input 
+                              type="number" min="-100" max="100" 
+                              value={sliderWeights.POINTS_DRIVER_FROZEN}
+                              onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_DRIVER_FROZEN: Number(e.target.value) })}
+                              className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                            />
+                          </div>
+                          <input 
+                            type="range" min="-100" max="100" dir="ltr"
+                            value={sliderWeights.POINTS_DRIVER_FROZEN}
+                            onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_DRIVER_FROZEN: Number(e.target.value) })}
+                            className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                          />
+                        </div>
+
+                        {/* Driver Confused */}
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                            <span>{language === Language.HE ? 'נהג מבולבל (POINTS_DRIVER_CONFUSED)' : 'Driver Confused Penalty'}</span>
+                            <input 
+                              type="number" min="-100" max="100" 
+                              value={sliderWeights.POINTS_DRIVER_CONFUSED}
+                              onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_DRIVER_CONFUSED: Number(e.target.value) })}
+                              className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                            />
+                          </div>
+                          <input 
+                            type="range" min="-100" max="100" dir="ltr"
+                            value={sliderWeights.POINTS_DRIVER_CONFUSED}
+                            onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_DRIVER_CONFUSED: Number(e.target.value) })}
+                            className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                          />
+                        </div>
+
+                        {/* Driver Stopped */}
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                            <span>{language === Language.HE ? 'הפסקת ניקוד (POINTS_DRIVER_STOPPED)' : 'Stopped Scoring Penalty'}</span>
+                            <input 
+                              type="number" min="-100" max="100" 
+                              value={sliderWeights.POINTS_DRIVER_STOPPED}
+                              onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_DRIVER_STOPPED: Number(e.target.value) })}
+                              className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                            />
+                          </div>
+                          <input 
+                            type="range" min="-100" max="100" dir="ltr"
+                            value={sliderWeights.POINTS_DRIVER_STOPPED}
+                            onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_DRIVER_STOPPED: Number(e.target.value) })}
+                            className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Section: Fouls & Penalties Detail */}
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveWeightsCategory(activeWeightsCategory === 'fouls' ? null : 'fouls')}
+                      className={`w-full flex items-center justify-between p-3.5 rounded-xl border transition-all select-none text-right ${
+                        activeWeightsCategory === 'fouls' 
+                          ? 'bg-rose-50/70 border-rose-200 text-rose-900 shadow-xs' 
+                          : 'bg-slate-50 border-slate-200/85 text-slate-700 hover:bg-slate-100/70'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`p-1.5 rounded-lg ${activeWeightsCategory === 'fouls' ? 'bg-rose-100 text-rose-700' : 'bg-slate-200/60 text-slate-500'}`}>
+                          <ShieldAlert size={14} />
+                        </div>
+                        <div className="text-right">
+                          <h4 className="text-xs font-black uppercase tracking-tight">
+                            {language === Language.HE ? 'פירוט עבירות ועונשים' : 'Fouls & Penalties'}
+                          </h4>
+                          <p className="text-[10px] text-slate-400 font-bold mt-0.5">
+                            {language === Language.HE ? '4 קנסי עבירות מפורטים' : '4 detailed foul penalties'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <ChevronRight 
+                          size={15} 
+                          className={`transition-all duration-300 ${
+                            activeWeightsCategory === 'fouls' ? 'rotate-90 text-rose-600' : 'text-slate-400'
+                          }`} 
                         />
                       </div>
-                      <input 
-                        type="range" min="-100" max="100" 
-                        value={sliderWeights.POINTS_DRIVER_SUCCESS}
-                        onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_DRIVER_SUCCESS: Number(e.target.value) })}
-                        className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                      />
-                    </div>
+                    </button>
 
-                    {/* Driver Rebound */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                        <span>{language === Language.HE ? 'כדור חוזר מהיר (POINTS_DRIVER_REBOUND)' : 'Fast Rebound Weight'}</span>
-                        <input 
-                          type="number" min="-100" max="100" 
-                          value={sliderWeights.POINTS_DRIVER_REBOUND}
-                          onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_DRIVER_REBOUND: Number(e.target.value) })}
-                          className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
-                        />
-                      </div>
-                      <input 
-                        type="range" min="-100" max="100" 
-                        value={sliderWeights.POINTS_DRIVER_REBOUND}
-                        onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_DRIVER_REBOUND: Number(e.target.value) })}
-                        className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                      />
-                    </div>
+                    {activeWeightsCategory === 'fouls' && (
+                      <div className="p-4 bg-white border border-slate-100 rounded-xl space-y-4 shadow-inner-sm animate-in fade-in slide-in-from-top-1 duration-200">
+                        {/* Gate Foul */}
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                            <span>{language === Language.HE ? 'עבירת שער (POINTS_FOUL_GATE)' : 'Gate Foul Penalty'}</span>
+                            <input 
+                              type="number" min="-100" max="100" 
+                              value={sliderWeights.POINTS_FOUL_GATE}
+                              onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_FOUL_GATE: Number(e.target.value) })}
+                              className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                            />
+                          </div>
+                          <input 
+                            type="range" min="-100" max="100" dir="ltr"
+                            value={sliderWeights.POINTS_FOUL_GATE}
+                            onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_FOUL_GATE: Number(e.target.value) })}
+                            className="w-full h-1.5 bg-rose-100 rounded-lg appearance-none cursor-pointer accent-rose-600"
+                          />
+                        </div>
 
-                    {/* Driver Late */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                        <span>{language === Language.HE ? 'תרגום מאוחר (POINTS_DRIVER_LATE)' : 'Late Translation Penalty'}</span>
-                        <input 
-                          type="number" min="-100" max="100" 
-                          value={sliderWeights.POINTS_DRIVER_LATE}
-                          onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_DRIVER_LATE: Number(e.target.value) })}
-                          className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
-                        />
-                      </div>
-                      <input 
-                        type="range" min="-100" max="100" 
-                        value={sliderWeights.POINTS_DRIVER_LATE}
-                        onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_DRIVER_LATE: Number(e.target.value) })}
-                        className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                      />
-                    </div>
+                        {/* Parking Foul */}
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                            <span>{language === Language.HE ? 'עבירת חנייה (POINTS_FOUL_PARKING)' : 'Parking Foul Penalty'}</span>
+                            <input 
+                              type="number" min="-100" max="100" 
+                              value={sliderWeights.POINTS_FOUL_PARKING}
+                              onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_FOUL_PARKING: Number(e.target.value) })}
+                              className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                            />
+                          </div>
+                          <input 
+                            type="range" min="-100" max="100" dir="ltr"
+                            value={sliderWeights.POINTS_FOUL_PARKING}
+                            onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_FOUL_PARKING: Number(e.target.value) })}
+                            className="w-full h-1.5 bg-rose-100 rounded-lg appearance-none cursor-pointer accent-rose-600"
+                          />
+                        </div>
 
-                    {/* Driver Frozen */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                        <span>{language === Language.HE ? 'רובוט קפוא (POINTS_DRIVER_FROZEN)' : 'Robot Frozen Penalty'}</span>
-                        <input 
-                          type="number" min="-100" max="100" 
-                          value={sliderWeights.POINTS_DRIVER_FROZEN}
-                          onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_DRIVER_FROZEN: Number(e.target.value) })}
-                          className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
-                        />
-                      </div>
-                      <input 
-                        type="range" min="-100" max="100" 
-                        value={sliderWeights.POINTS_DRIVER_FROZEN}
-                        onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_DRIVER_FROZEN: Number(e.target.value) })}
-                        className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                      />
-                    </div>
+                        {/* Intake Foul */}
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                            <span>{language === Language.HE ? 'עבירת אינטייק (POINTS_FOUL_INTAKE)' : 'Intake Foul Penalty'}</span>
+                            <input 
+                              type="number" min="-100" max="100" 
+                              value={sliderWeights.POINTS_FOUL_INTAKE}
+                              onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_FOUL_INTAKE: Number(e.target.value) })}
+                              className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                            />
+                          </div>
+                          <input 
+                            type="range" min="-100" max="100" dir="ltr"
+                            value={sliderWeights.POINTS_FOUL_INTAKE}
+                            onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_FOUL_INTAKE: Number(e.target.value) })}
+                            className="w-full h-1.5 bg-rose-100 rounded-lg appearance-none cursor-pointer accent-rose-600"
+                          />
+                        </div>
 
-                    {/* Driver Confused */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                        <span>{language === Language.HE ? 'נהג מבולבל (POINTS_DRIVER_CONFUSED)' : 'Driver Confused Penalty'}</span>
-                        <input 
-                          type="number" min="-100" max="100" 
-                          value={sliderWeights.POINTS_DRIVER_CONFUSED}
-                          onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_DRIVER_CONFUSED: Number(e.target.value) })}
-                          className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
-                        />
+                        {/* General / Fallback Foul */}
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                            <span>{language === Language.HE ? 'עבירות כללי / גיבוי (POINTS_FAUL)' : 'General / Fallback Foul Weight'}</span>
+                            <input 
+                              type="number" min="-100" max="100" 
+                              value={sliderWeights.POINTS_FAUL}
+                              onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_FAUL: Number(e.target.value) })}
+                              className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                            />
+                          </div>
+                          <input 
+                            type="range" min="-100" max="100" dir="ltr"
+                            value={sliderWeights.POINTS_FAUL}
+                            onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_FAUL: Number(e.target.value) })}
+                            className="w-full h-1.5 bg-rose-100 rounded-lg appearance-none cursor-pointer accent-rose-600"
+                          />
+                        </div>
                       </div>
-                      <input 
-                        type="range" min="-100" max="100" 
-                        value={sliderWeights.POINTS_DRIVER_CONFUSED}
-                        onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_DRIVER_CONFUSED: Number(e.target.value) })}
-                        className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                      />
-                    </div>
-
-                    {/* Driver Stopped */}
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                        <span>{language === Language.HE ? 'הפסקת ניקוד (POINTS_DRIVER_STOPPED)' : 'Stopped Scoring Penalty'}</span>
-                        <input 
-                          type="number" min="-100" max="100" 
-                          value={sliderWeights.POINTS_DRIVER_STOPPED}
-                          onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_DRIVER_STOPPED: Number(e.target.value) })}
-                          className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
-                        />
-                      </div>
-                      <input 
-                        type="range" min="-100" max="100" 
-                        value={sliderWeights.POINTS_DRIVER_STOPPED}
-                        onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_DRIVER_STOPPED: Number(e.target.value) })}
-                        className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                      />
-                    </div>
+                    )}
                   </div>
 
                 </div>

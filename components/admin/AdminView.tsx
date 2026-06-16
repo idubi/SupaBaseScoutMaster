@@ -134,7 +134,10 @@ const AdminView: React.FC<AdminViewProps> = ({
     POINTS_PARKING: 5,
     POINTS_AUTO_MISS: -1,
     POINTS_TELEOP_MISS: -1,
-    POINTS_FAUL: -2
+    POINTS_FAUL: 0,
+    POINTS_FOUL_GATE: -2,
+    POINTS_FOUL_PARKING: -2,
+    POINTS_FOUL_INTAKE: -2
   });
   const [sliderWeights, setSliderWeights] = useState({
     POINTS_AUTO_HIT: 7,
@@ -142,7 +145,10 @@ const AdminView: React.FC<AdminViewProps> = ({
     POINTS_PARKING: 5,
     POINTS_AUTO_MISS: -1,
     POINTS_TELEOP_MISS: -1,
-    POINTS_FAUL: -2
+    POINTS_FAUL: 0,
+    POINTS_FOUL_GATE: -2,
+    POINTS_FOUL_PARKING: -2,
+    POINTS_FOUL_INTAKE: -2
   });
   const [showHelp, setShowHelp] = useState(false);
   const [isSavingWeights, setIsSavingWeights] = useState(false);
@@ -156,12 +162,15 @@ const AdminView: React.FC<AdminViewProps> = ({
         const body = await res.json();
         if (body.success && body.config) {
           const w = {
-            POINTS_AUTO_HIT: Number(body.config.POINTS_AUTO_HIT),
-            POINTS_TELEOP_HIT: Number(body.config.POINTS_TELEOP_HIT),
-            POINTS_PARKING: Number(body.config.POINTS_PARKING),
-            POINTS_AUTO_MISS: Number(body.config.POINTS_AUTO_MISS),
-            POINTS_TELEOP_MISS: Number(body.config.POINTS_TELEOP_MISS),
-            POINTS_FAUL: Number(body.config.POINTS_FAUL)
+            POINTS_AUTO_HIT: Number(body.config.POINTS_AUTO_HIT ?? 7),
+            POINTS_TELEOP_HIT: Number(body.config.POINTS_TELEOP_HIT ?? 5),
+            POINTS_PARKING: Number(body.config.POINTS_PARKING ?? 5),
+            POINTS_AUTO_MISS: Number(body.config.POINTS_AUTO_MISS ?? -1),
+            POINTS_TELEOP_MISS: Number(body.config.POINTS_TELEOP_MISS ?? -1),
+            POINTS_FAUL: Number(body.config.POINTS_FAUL ?? 0),
+            POINTS_FOUL_GATE: Number(body.config.POINTS_FOUL_GATE ?? -2),
+            POINTS_FOUL_PARKING: Number(body.config.POINTS_FOUL_PARKING ?? -2),
+            POINTS_FOUL_INTAKE: Number(body.config.POINTS_FOUL_INTAKE ?? -2)
           };
           setDbWeights(w);
           setSliderWeights(w);
@@ -1987,7 +1996,7 @@ const AdminView: React.FC<AdminViewProps> = ({
                     <input 
                       type="range" 
                       min="-100" 
-                      max="100" 
+                      max="100" dir="ltr"
                       value={sliderWeights.POINTS_AUTO_HIT}
                       onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_AUTO_HIT: Number(e.target.value) })}
                       className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
@@ -2012,7 +2021,7 @@ const AdminView: React.FC<AdminViewProps> = ({
                     <input 
                       type="range" 
                       min="-100" 
-                      max="100" 
+                      max="100" dir="ltr"
                       value={sliderWeights.POINTS_TELEOP_HIT}
                       onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_TELEOP_HIT: Number(e.target.value) })}
                       className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
@@ -2030,14 +2039,14 @@ const AdminView: React.FC<AdminViewProps> = ({
                           max="100" 
                           value={sliderWeights.POINTS_PARKING}
                           onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_PARKING: Number(e.target.value) })}
-                          className="w-14 text-center px-1.5 py-0.5 border-2 border-slate-900 rounded-md font-mono font-bold"
+                          className="w-14 text-center px-1.5 py-0.5 border-2 border-slate-950 rounded-md font-mono font-bold"
                         />
                       </div>
                     </div>
                     <input 
                       type="range" 
                       min="-100" 
-                      max="100" 
+                      max="100" dir="ltr"
                       value={sliderWeights.POINTS_PARKING}
                       onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_PARKING: Number(e.target.value) })}
                       className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
@@ -2062,7 +2071,7 @@ const AdminView: React.FC<AdminViewProps> = ({
                     <input 
                       type="range" 
                       min="-100" 
-                      max="100" 
+                      max="100" dir="ltr"
                       value={sliderWeights.POINTS_AUTO_MISS}
                       onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_AUTO_MISS: Number(e.target.value) })}
                       className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
@@ -2087,17 +2096,92 @@ const AdminView: React.FC<AdminViewProps> = ({
                     <input 
                       type="range" 
                       min="-100" 
-                      max="100" 
+                      max="100" dir="ltr"
                       value={sliderWeights.POINTS_TELEOP_MISS}
                       onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_TELEOP_MISS: Number(e.target.value) })}
                       className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
                     />
                   </div>
 
-                  {/* Weight Fouls */}
+                  {/* Weight Fouls - Gate */}
                   <div className="space-y-2">
                     <div className="flex justify-between items-center text-xs font-black uppercase text-slate-700">
-                      <span>{isRTL ? 'עבירות (POINTS_FAUL)' : 'Fouls Weight'}</span>
+                      <span>{isRTL ? 'עבירת שער (POINTS_FOUL_GATE)' : 'Gate Foul Penalty'}</span>
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="number" 
+                          min="-100" 
+                          max="100" 
+                          value={sliderWeights.POINTS_FOUL_GATE}
+                          onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_FOUL_GATE: Number(e.target.value) })}
+                          className="w-14 text-center px-1.5 py-0.5 border-2 border-slate-900 rounded-md font-mono font-bold"
+                        />
+                      </div>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="-100" 
+                      max="100" dir="ltr"
+                      value={sliderWeights.POINTS_FOUL_GATE}
+                      onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_FOUL_GATE: Number(e.target.value) })}
+                      className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                    />
+                  </div>
+
+                  {/* Weight Fouls - Parking */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center text-xs font-black uppercase text-slate-700">
+                      <span>{isRTL ? 'עבירת חנייה (POINTS_FOUL_PARKING)' : 'Parking Foul Penalty'}</span>
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="number" 
+                          min="-100" 
+                          max="100" 
+                          value={sliderWeights.POINTS_FOUL_PARKING}
+                          onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_FOUL_PARKING: Number(e.target.value) })}
+                          className="w-14 text-center px-1.5 py-0.5 border-2 border-slate-900 rounded-md font-mono font-bold"
+                        />
+                      </div>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="-100" 
+                      max="100" dir="ltr"
+                      value={sliderWeights.POINTS_FOUL_PARKING}
+                      onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_FOUL_PARKING: Number(e.target.value) })}
+                      className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                    />
+                  </div>
+
+                  {/* Weight Fouls - Intake */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center text-xs font-black uppercase text-slate-700">
+                      <span>{isRTL ? 'עבירת אינטייק (POINTS_FOUL_INTAKE)' : 'Intake Foul Penalty'}</span>
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="number" 
+                          min="-100" 
+                          max="100" 
+                          value={sliderWeights.POINTS_FOUL_INTAKE}
+                          onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_FOUL_INTAKE: Number(e.target.value) })}
+                          className="w-14 text-center px-1.5 py-0.5 border-2 border-slate-900 rounded-md font-mono font-bold"
+                        />
+                      </div>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="-100" 
+                      max="100" dir="ltr"
+                      value={sliderWeights.POINTS_FOUL_INTAKE}
+                      onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_FOUL_INTAKE: Number(e.target.value) })}
+                      className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                    />
+                  </div>
+
+                  {/* Weight Fouls - Fallback */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center text-xs font-black uppercase text-slate-700">
+                      <span>{isRTL ? 'עבירות כללי / גיבוי (POINTS_FAUL)' : 'General / Fallback Foul Weight'}</span>
                       <div className="flex items-center gap-2">
                         <input 
                           type="number" 
@@ -2112,7 +2196,7 @@ const AdminView: React.FC<AdminViewProps> = ({
                     <input 
                       type="range" 
                       min="-100" 
-                      max="100" 
+                      max="100" dir="ltr"
                       value={sliderWeights.POINTS_FAUL}
                       onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_FAUL: Number(e.target.value) })}
                       className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
@@ -2397,12 +2481,35 @@ const AdminView: React.FC<AdminViewProps> = ({
                       </span>
                     </div>
                     
-                    <div className="flex justify-between items-center bg-orange-50 p-3 rounded-lg border border-orange-100">
-                      <span className="text-slate-700">{language === Language.HE ? 'עבירות' : 'Fouls'}</span>
-                      <span className="text-orange-700 font-bold text-left" dir="ltr">
-                        {selectedGradeDetails.gradeDetails.avgFouls.toFixed(2)} ({selectedGradeDetails.TOTAL_FOULS}/{selectedGradeDetails.GAMES_COUNT}) × {selectedGradeDetails.gradeDetails.weights.POINTS_FAUL} = {(selectedGradeDetails.gradeDetails.avgFouls * selectedGradeDetails.gradeDetails.weights.POINTS_FAUL).toFixed(2)}
+                    <div className="flex justify-between items-center bg-orange-50 p-2 rounded-lg border border-orange-100">
+                      <span className="text-slate-700">{language === Language.HE ? 'עבירות שער' : 'Gate Fouls'}</span>
+                      <span className="text-orange-700 font-bold text-left text-xs" dir="ltr">
+                        {(selectedGradeDetails.gradeDetails.avgFoulGate || 0).toFixed(2)} ({selectedGradeDetails.TOTAL_GATE_FOULS || 0}/{selectedGradeDetails.GAMES_COUNT}) × {selectedGradeDetails.gradeDetails.weights.POINTS_FOUL_GATE ?? -2} = {((selectedGradeDetails.gradeDetails.avgFoulGate || 0) * (selectedGradeDetails.gradeDetails.weights.POINTS_FOUL_GATE ?? -2)).toFixed(2)}
                       </span>
                     </div>
+
+                    <div className="flex justify-between items-center bg-orange-50 p-2 rounded-lg border border-orange-100">
+                      <span className="text-slate-700">{language === Language.HE ? 'עבירות חנייה' : 'Parking Fouls'}</span>
+                      <span className="text-orange-700 font-bold text-left text-xs" dir="ltr">
+                        {(selectedGradeDetails.gradeDetails.avgFoulParking || 0).toFixed(2)} ({selectedGradeDetails.TOTAL_PARKING_FOULS || 0}/{selectedGradeDetails.GAMES_COUNT}) × {selectedGradeDetails.gradeDetails.weights.POINTS_FOUL_PARKING ?? -2} = {((selectedGradeDetails.gradeDetails.avgFoulParking || 0) * (selectedGradeDetails.gradeDetails.weights.POINTS_FOUL_PARKING ?? -2)).toFixed(2)}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center bg-orange-50 p-2 rounded-lg border border-orange-100">
+                      <span className="text-slate-700">{language === Language.HE ? 'עבירות אינטייק' : 'Intake Fouls'}</span>
+                      <span className="text-orange-700 font-bold text-left text-xs" dir="ltr">
+                        {(selectedGradeDetails.gradeDetails.avgFoulIntake || 0).toFixed(2)} ({selectedGradeDetails.TOTAL_INTAKE_FOULS || 0}/{selectedGradeDetails.GAMES_COUNT}) × {selectedGradeDetails.gradeDetails.weights.POINTS_FOUL_INTAKE ?? -2} = {((selectedGradeDetails.gradeDetails.avgFoulIntake || 0) * (selectedGradeDetails.gradeDetails.weights.POINTS_FOUL_INTAKE ?? -2)).toFixed(2)}
+                      </span>
+                    </div>
+
+                    {(selectedGradeDetails.gradeDetails.weights.POINTS_FAUL !== 0 || selectedGradeDetails.TOTAL_FOULS > 0) && (
+                      <div className="flex justify-between items-center bg-orange-50 p-2 rounded-lg border border-orange-100 opacity-80">
+                        <span className="text-slate-700">{language === Language.HE ? 'עבירות כללי' : 'General Fouls'}</span>
+                        <span className="text-orange-700 font-bold text-left text-xs" dir="ltr">
+                          {selectedGradeDetails.gradeDetails.avgFouls.toFixed(2)} ({selectedGradeDetails.TOTAL_FOULS}/{selectedGradeDetails.GAMES_COUNT}) × {selectedGradeDetails.gradeDetails.weights.POINTS_FAUL} = {(selectedGradeDetails.gradeDetails.avgFouls * selectedGradeDetails.gradeDetails.weights.POINTS_FAUL).toFixed(2)}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (

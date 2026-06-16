@@ -161,6 +161,9 @@ export interface TeamGradeResult {
     avgAutoMiss: number;
     avgTeleopMiss: number;
     avgFouls: number;
+    avgFoulGate?: number;
+    avgFoulParking?: number;
+    avgFoulIntake?: number;
     avgParking: number;
     weights: Record<string, number>;
   };

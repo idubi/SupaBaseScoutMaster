@@ -1070,10 +1070,11 @@ async function startServer() {
           "POINTS_OPEN_GATE", "POINTS_INTAKE_USED", "POINTS_SHOOTING_SMALL", "POINTS_SHOOTING_BIG",
           "POINTS_COLLECTION_HUMAN", "POINTS_COLLECTION_FLOOR", "POINTS_DRIVER_AWARENESS",
           "POINTS_DRIVER_SUCCESS", "POINTS_DRIVER_REBOUND", "POINTS_DRIVER_LATE", "POINTS_DRIVER_FROZEN",
-          "POINTS_DRIVER_CONFUSED", "POINTS_DRIVER_STOPPED"
+          "POINTS_DRIVER_CONFUSED", "POINTS_DRIVER_STOPPED",
+          "POINTS_FOUL_GATE", "POINTS_FOUL_PARKING", "POINTS_FOUL_INTAKE"
         ];
         for (const col of newWeightCols) {
-          const defaultVal = col.includes("LATE") ? -1 : (col.includes("FROZEN") || col.includes("STOPPED") ? -3 : (col.includes("CONFUSED") ? -2 : (col.includes("AWARENESS") || col.includes("SUCCESS") ? 3 : 2)));
+          const defaultVal = col.includes("FOUL") ? -2 : (col.includes("LATE") ? -1 : (col.includes("FROZEN") || col.includes("STOPPED") ? -3 : (col.includes("CONFUSED") ? -2 : (col.includes("AWARENESS") || col.includes("SUCCESS") ? 3 : 2))));
           try {
             await sql_db.unsafe(`ALTER TABLE grade_calculation_config ADD COLUMN IF NOT EXISTS "${col}" NUMERIC DEFAULT ${defaultVal};`);
             await sql_db.unsafe(`ALTER TABLE grades_config ADD COLUMN IF NOT EXISTS "${col}" NUMERIC DEFAULT ${defaultVal};`);

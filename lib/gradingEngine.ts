@@ -10,7 +10,12 @@ export const GRADING_WEIGHTS: Record<string, number> = {
   POINTS_PARKING: 5,
   POINTS_AUTO_MISS: -1,
   POINTS_TELEOP_MISS: -1,
-  POINTS_FAUL: -2,
+  POINTS_FAUL: 0, // General fallback weight (now split into gate, parking, and intake)
+
+  // Fine-grained foul types added per user request
+  POINTS_FOUL_GATE: -2,        // Weight for Gate fouls (teleGateFoul is true)
+  POINTS_FOUL_PARKING: -2,     // Weight for Parking fouls (teleParkingFoul is true)
+  POINTS_FOUL_INTAKE: -2,      // Weight for Intake fouls (teleIntakeFoul is true)
 
   // NEW SC scouting fields added per user request
   POINTS_OPEN_GATE: 2,         // Weight for completing 'Open Gate' (autoOpenGate is true)
@@ -75,6 +80,10 @@ export function calculateTeamGrade(data: TeamAggregatedData, weights = GRADING_W
   const avgParking = TOTAL_IS_FULL_PARKING / GAMES_COUNT;
 
   // New averages
+  const avgFoulGate = (data.TOTAL_GATE_FOULS || 0) / GAMES_COUNT;
+  const avgFoulParking = (data.TOTAL_PARKING_FOULS || 0) / GAMES_COUNT;
+  const avgFoulIntake = (data.TOTAL_INTAKE_FOULS || 0) / GAMES_COUNT;
+
   const avgOpenGate = (data.TOTAL_OPEN_GATE || 0) / GAMES_COUNT;
   const avgIntakeUsed = (data.TOTAL_INTAKE_USED || 0) / GAMES_COUNT;
   const avgShootingSmall = (data.TOTAL_SHOOTING_SMALL || 0) / GAMES_COUNT;
@@ -97,8 +106,13 @@ export function calculateTeamGrade(data: TeamAggregatedData, weights = GRADING_W
     (avgTeleopHit * getWeight('POINTS_TELEOP_HIT')) +
     (avgAutoMiss * getWeight('POINTS_AUTO_MISS')) +
     (avgTeleopMiss * getWeight('POINTS_TELEOP_MISS')) +
-    (avgFouls * getWeight('POINTS_FAUL')) +
     (avgParking * getWeight('POINTS_PARKING')) +
+    (avgFouls * getWeight('POINTS_FAUL')) + // Kept in case of general unclassified fouls (should be 0 or small)
+    
+    // Fine-grained fouls
+    (avgFoulGate * getWeight('POINTS_FOUL_GATE')) +
+    (avgFoulParking * getWeight('POINTS_FOUL_PARKING')) +
+    (avgFoulIntake * getWeight('POINTS_FOUL_INTAKE')) +
     
     (avgOpenGate * getWeight('POINTS_OPEN_GATE')) +
     (avgIntakeUsed * getWeight('POINTS_INTAKE_USED')) +
@@ -135,6 +149,9 @@ export function calculateTeamGrade(data: TeamAggregatedData, weights = GRADING_W
       avgAutoMiss,
       avgTeleopMiss,
       avgFouls,
+      avgFoulGate,
+      avgFoulParking,
+      avgFoulIntake,
       avgParking,
       weights
     }
