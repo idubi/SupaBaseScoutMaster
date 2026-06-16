@@ -693,17 +693,14 @@ async function startServer() {
 
   app.post("/api/grading-config", async (req, res) => {
     try {
-      const { POINTS_AUTO_HIT, POINTS_TELEOP_HIT, POINTS_PARKING, POINTS_AUTO_MISS, POINTS_TELEOP_MISS, POINTS_FAUL } = req.body;
-      
-      const updateData = {
+      const updateData: Record<string, any> = {
         id: 1,
-        POINTS_AUTO_HIT: Number(POINTS_AUTO_HIT !== undefined ? POINTS_AUTO_HIT : GRADING_WEIGHTS.POINTS_AUTO_HIT),
-        POINTS_TELEOP_HIT: Number(POINTS_TELEOP_HIT !== undefined ? POINTS_TELEOP_HIT : GRADING_WEIGHTS.POINTS_TELEOP_HIT),
-        POINTS_PARKING: Number(POINTS_PARKING !== undefined ? POINTS_PARKING : GRADING_WEIGHTS.POINTS_PARKING),
-        POINTS_AUTO_MISS: Number(POINTS_AUTO_MISS !== undefined ? POINTS_AUTO_MISS : GRADING_WEIGHTS.POINTS_AUTO_MISS),
-        POINTS_TELEOP_MISS: Number(POINTS_TELEOP_MISS !== undefined ? POINTS_TELEOP_MISS : GRADING_WEIGHTS.POINTS_TELEOP_MISS),
-        POINTS_FAUL: Number(POINTS_FAUL !== undefined ? POINTS_FAUL : GRADING_WEIGHTS.POINTS_FAUL),
       };
+
+      Object.keys(GRADING_WEIGHTS).forEach(key => {
+        const val = req.body[key];
+        updateData[key] = val !== undefined ? Number(val) : GRADING_WEIGHTS[key];
+      });
 
       // 1. Write to grades_config
       const { error } = await supabase
@@ -723,7 +720,7 @@ async function startServer() {
         rowTimestamp: 'Manual',
         teamNumber: 'ALL',
         action: 'updated',
-        details: `Grades calculation config saved. Active weights: AutoHit=${POINTS_AUTO_HIT}, TeleopHit=${POINTS_TELEOP_HIT}, Parking=${POINTS_PARKING}`
+        details: `Grades calculation config saved. Active weights: AutoHit=${updateData.POINTS_AUTO_HIT}, TeleopHit=${updateData.POINTS_TELEOP_HIT}, Parking=${updateData.POINTS_PARKING}`
       });
 
       // Recalculate and rebuild grades upon saving
@@ -823,14 +820,12 @@ async function startServer() {
           .maybeSingle();
         
         if (!configError && configData) {
-          activeWeights = {
-            POINTS_AUTO_HIT: Number(configData.POINTS_AUTO_HIT),
-            POINTS_TELEOP_HIT: Number(configData.POINTS_TELEOP_HIT),
-            POINTS_PARKING: Number(configData.POINTS_PARKING),
-            POINTS_AUTO_MISS: Number(configData.POINTS_AUTO_MISS),
-            POINTS_TELEOP_MISS: Number(configData.POINTS_TELEOP_MISS),
-            POINTS_FAUL: Number(configData.POINTS_FAUL),
-          };
+          activeWeights = { ...GRADING_WEIGHTS };
+          Object.keys(GRADING_WEIGHTS).forEach(key => {
+            if (configData[key] !== undefined && configData[key] !== null) {
+              activeWeights[key] = Number(configData[key]);
+            }
+          });
         } else {
           // Try grade_calculation_config fallback
           const { data: legacyData, error: legacyError } = await supabase
@@ -839,14 +834,12 @@ async function startServer() {
             .eq('id', 1)
             .maybeSingle();
           if (!legacyError && legacyData) {
-            activeWeights = {
-              POINTS_AUTO_HIT: Number(legacyData.POINTS_AUTO_HIT),
-              POINTS_TELEOP_HIT: Number(legacyData.POINTS_TELEOP_HIT),
-              POINTS_PARKING: Number(legacyData.POINTS_PARKING),
-              POINTS_AUTO_MISS: Number(legacyData.POINTS_AUTO_MISS),
-              POINTS_TELEOP_MISS: Number(legacyData.POINTS_TELEOP_MISS),
-              POINTS_FAUL: Number(legacyData.POINTS_FAUL),
-            };
+            activeWeights = { ...GRADING_WEIGHTS };
+            Object.keys(GRADING_WEIGHTS).forEach(key => {
+              if (legacyData[key] !== undefined && legacyData[key] !== null) {
+                activeWeights[key] = Number(legacyData[key]);
+              }
+            });
           }
         }
       } catch (err) {
@@ -893,6 +886,19 @@ async function startServer() {
         const intakeFoul = parseNum(match.teleIntakeFoul);
         const fouls = gateFoul + parkingFoul + intakeFoul;
 
+        // New Boolean / Scout metrics count once per match
+        const openGate = match.autoOpenGate ? 1 : 0;
+        const intakeUsed = match.autoIntakeUsed ? 1 : 0;
+        const teleHuman = match.teleHumanPlayer ? 1 : 0;
+        const teleFloorCollect = match.teleFloor ? 1 : 0;
+        const driverAwareness = match.teleFieldAwareness ? 1 : 0;
+        const driverSuccess = match.teleOverallSuccess ? 1 : 0;
+        const driverRebound = match.teleFastRebound ? 1 : 0;
+        const driverLate = match.teleLateTranslation ? 1 : 0;
+        const driverFrozen = match.teleIsFrozen ? 1 : 0;
+        const driverConfused = match.teleConfused ? 1 : 0;
+        const driverStopped = match.teleStoppedScoring ? 1 : 0;
+
         if (consolidatedMap.has(teamNumber)) {
           const existing = consolidatedMap.get(teamNumber)!;
           existing.GAMES_COUNT += 1;
@@ -910,6 +916,21 @@ async function startServer() {
           existing.TOTAL_GATE_FOULS += gateFoul;
           existing.TOTAL_PARKING_FOULS += parkingFoul;
           existing.TOTAL_INTAKE_FOULS += intakeFoul;
+
+          // Increment new totals safely
+          existing.TOTAL_OPEN_GATE = (existing.TOTAL_OPEN_GATE || 0) + openGate;
+          existing.TOTAL_INTAKE_USED = (existing.TOTAL_INTAKE_USED || 0) + intakeUsed;
+          existing.TOTAL_SHOOTING_SMALL = (existing.TOTAL_SHOOTING_SMALL || 0) + teleSmall;
+          existing.TOTAL_SHOOTING_BIG = (existing.TOTAL_SHOOTING_BIG || 0) + teleBig;
+          existing.TOTAL_COLLECTION_HUMAN = (existing.TOTAL_COLLECTION_HUMAN || 0) + teleHuman;
+          existing.TOTAL_COLLECTION_FLOOR = (existing.TOTAL_COLLECTION_FLOOR || 0) + teleFloorCollect;
+          existing.TOTAL_DRIVER_AWARENESS = (existing.TOTAL_DRIVER_AWARENESS || 0) + driverAwareness;
+          existing.TOTAL_DRIVER_SUCCESS = (existing.TOTAL_DRIVER_SUCCESS || 0) + driverSuccess;
+          existing.TOTAL_DRIVER_REBOUND = (existing.TOTAL_DRIVER_REBOUND || 0) + driverRebound;
+          existing.TOTAL_DRIVER_LATE = (existing.TOTAL_DRIVER_LATE || 0) + driverLate;
+          existing.TOTAL_DRIVER_FROZEN = (existing.TOTAL_DRIVER_FROZEN || 0) + driverFrozen;
+          existing.TOTAL_DRIVER_CONFUSED = (existing.TOTAL_DRIVER_CONFUSED || 0) + driverConfused;
+          existing.TOTAL_DRIVER_STOPPED = (existing.TOTAL_DRIVER_STOPPED || 0) + driverStopped;
         } else {
           consolidatedMap.set(teamNumber, {
             TeamNumber: teamNumber, GAMES_COUNT: 1, TOTAL_TELEOP_HIT: teleHit, TOTAL_AUTONOMUS_HIT: autoHit,
@@ -917,7 +938,22 @@ async function startServer() {
             TOTAL_AUTO_ZONE_SMALL: autoSmall, TOTAL_AUTO_ZONE_BIG: autoBig, TOTAL_TELEOP_ZONE_SMALL: teleSmall,
             TOTAL_TELEOP_ZONE_BIG: teleBig, TOTAL_AUTO_LEAVE: autoLeave, TOTAL_FOULS: fouls,
             TOTAL_GATE_FOULS: gateFoul, TOTAL_PARKING_FOULS: parkingFoul, TOTAL_INTAKE_FOULS: intakeFoul,
-            GRADE: 0, RATIO: 0, RANK: 0
+            GRADE: 0, RATIO: 0, RANK: 0,
+
+            // Set initial new totals
+            TOTAL_OPEN_GATE: openGate,
+            TOTAL_INTAKE_USED: intakeUsed,
+            TOTAL_SHOOTING_SMALL: teleSmall,
+            TOTAL_SHOOTING_BIG: teleBig,
+            TOTAL_COLLECTION_HUMAN: teleHuman,
+            TOTAL_COLLECTION_FLOOR: teleFloorCollect,
+            TOTAL_DRIVER_AWARENESS: driverAwareness,
+            TOTAL_DRIVER_SUCCESS: driverSuccess,
+            TOTAL_DRIVER_REBOUND: driverRebound,
+            TOTAL_DRIVER_LATE: driverLate,
+            TOTAL_DRIVER_FROZEN: driverFrozen,
+            TOTAL_DRIVER_CONFUSED: driverConfused,
+            TOTAL_DRIVER_STOPPED: driverStopped
           });
         }
       });
@@ -1029,7 +1065,39 @@ async function startServer() {
           ON CONFLICT (id) DO NOTHING;
         `);
 
-        console.log("[DB Startup] grades_config and grade_calculation_config initialized successfully.");
+        // Safely alter existing configuration tables to add any new weights columns
+        const newWeightCols = [
+          "POINTS_OPEN_GATE", "POINTS_INTAKE_USED", "POINTS_SHOOTING_SMALL", "POINTS_SHOOTING_BIG",
+          "POINTS_COLLECTION_HUMAN", "POINTS_COLLECTION_FLOOR", "POINTS_DRIVER_AWARENESS",
+          "POINTS_DRIVER_SUCCESS", "POINTS_DRIVER_REBOUND", "POINTS_DRIVER_LATE", "POINTS_DRIVER_FROZEN",
+          "POINTS_DRIVER_CONFUSED", "POINTS_DRIVER_STOPPED"
+        ];
+        for (const col of newWeightCols) {
+          const defaultVal = col.includes("LATE") ? -1 : (col.includes("FROZEN") || col.includes("STOPPED") ? -3 : (col.includes("CONFUSED") ? -2 : (col.includes("AWARENESS") || col.includes("SUCCESS") ? 3 : 2)));
+          try {
+            await sql_db.unsafe(`ALTER TABLE grade_calculation_config ADD COLUMN IF NOT EXISTS "${col}" NUMERIC DEFAULT ${defaultVal};`);
+            await sql_db.unsafe(`ALTER TABLE grades_config ADD COLUMN IF NOT EXISTS "${col}" NUMERIC DEFAULT ${defaultVal};`);
+          } catch (colErr) {
+            console.warn(`Could not add column ${col} schema on config:`, colErr);
+          }
+        }
+
+        // Safely alter teams_grades to add new totals columns
+        const newTeamGradCols = [
+          "TOTAL_OPEN_GATE", "TOTAL_INTAKE_USED", "TOTAL_SHOOTING_SMALL", "TOTAL_SHOOTING_BIG",
+          "TOTAL_COLLECTION_HUMAN", "TOTAL_COLLECTION_FLOOR", "TOTAL_DRIVER_AWARENESS",
+          "TOTAL_DRIVER_SUCCESS", "TOTAL_DRIVER_REBOUND", "TOTAL_DRIVER_LATE", "TOTAL_DRIVER_FROZEN",
+          "TOTAL_DRIVER_CONFUSED", "TOTAL_DRIVER_STOPPED"
+        ];
+        for (const col of newTeamGradCols) {
+          try {
+            await sql_db.unsafe(`ALTER TABLE teams_grades ADD COLUMN IF NOT EXISTS "${col}" INTEGER DEFAULT 0;`);
+          } catch (colErr) {
+            console.warn(`Could not add column ${col} schema on teams_grades:`, colErr);
+          }
+        }
+
+        console.log("[DB Startup] grades_config and grade_calculation_config initialized successfully. Migrations checked.");
         await sql_db.end();
       } catch (err) {
         console.error("[DB Startup] Could not automatically run DDL check:", err);

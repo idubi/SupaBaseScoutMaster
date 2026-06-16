@@ -4,13 +4,32 @@ import type { TeamAggregatedData, TeamGradeResult } from '../types.ts';
  * Grading Engine Weights
  * These are configurable parameters for the team performance calculation.
  */
-export const GRADING_WEIGHTS = {
+export const GRADING_WEIGHTS: Record<string, number> = {
   POINTS_AUTO_HIT: 7,
   POINTS_TELEOP_HIT: 5,
   POINTS_PARKING: 5,
   POINTS_AUTO_MISS: -1,
   POINTS_TELEOP_MISS: -1,
   POINTS_FAUL: -2,
+
+  // NEW SC scouting fields added per user request
+  POINTS_OPEN_GATE: 2,         // Weight for completing 'Open Gate' (autoOpenGate is true)
+  POINTS_INTAKE_USED: 2,       // Weight for completing 'Intake Used' (autoIntakeUsed is true)
+  POINTS_SHOOTING_SMALL: 2,    // Weight for shooting to small zone (isTeleopZoneSmall is true)
+  POINTS_SHOOTING_BIG: 2,      // Weight for shooting to big zone (isTeleopZoneBig is true)
+  POINTS_COLLECTION_HUMAN: 2,  // Weight for human player collection (teleHumanPlayer is true)
+  POINTS_COLLECTION_FLOOR: 2,  // Weight for floor collection capability (teleFloor is true)
+  
+  // Driver Skills weights
+  POINTS_DRIVER_AWARENESS: 3,  // Weight for good field awareness (teleFieldAwareness is true)
+  POINTS_DRIVER_SUCCESS: 3,    // Weight for overall success (teleOverallSuccess is true)
+  POINTS_DRIVER_REBOUND: 2,    // Weight for fast rebound (teleFastRebound is true)
+  
+  // Negative driver skill elements (acting like active fouls)
+  POINTS_DRIVER_LATE: -1,      // Penalty for late translation (teleLateTranslation is true)
+  POINTS_DRIVER_FROZEN: -3,    // Penalty for robot frozen (teleIsFrozen is true)
+  POINTS_DRIVER_CONFUSED: -2,  // Penalty for driver confused (teleConfused is true)
+  POINTS_DRIVER_STOPPED: -3    // Penalty for stopped scoring (teleStoppedScoring is true)
 };
 
 /**
@@ -18,12 +37,11 @@ export const GRADING_WEIGHTS = {
  */
 export function updateGradingWeights(newWeights: any) {
   if (!newWeights) return;
-  if (newWeights.POINTS_AUTO_HIT !== undefined) GRADING_WEIGHTS.POINTS_AUTO_HIT = Number(newWeights.POINTS_AUTO_HIT);
-  if (newWeights.POINTS_TELEOP_HIT !== undefined) GRADING_WEIGHTS.POINTS_TELEOP_HIT = Number(newWeights.POINTS_TELEOP_HIT);
-  if (newWeights.POINTS_PARKING !== undefined) GRADING_WEIGHTS.POINTS_PARKING = Number(newWeights.POINTS_PARKING);
-  if (newWeights.POINTS_AUTO_MISS !== undefined) GRADING_WEIGHTS.POINTS_AUTO_MISS = Number(newWeights.POINTS_AUTO_MISS);
-  if (newWeights.POINTS_TELEOP_MISS !== undefined) GRADING_WEIGHTS.POINTS_TELEOP_MISS = Number(newWeights.POINTS_TELEOP_MISS);
-  if (newWeights.POINTS_FAUL !== undefined) GRADING_WEIGHTS.POINTS_FAUL = Number(newWeights.POINTS_FAUL);
+  Object.keys(GRADING_WEIGHTS).forEach(key => {
+    if (newWeights[key] !== undefined) {
+      GRADING_WEIGHTS[key] = Number(newWeights[key]);
+    }
+  });
 }
 
 /**
@@ -56,14 +74,45 @@ export function calculateTeamGrade(data: TeamAggregatedData, weights = GRADING_W
   const avgFouls = TOTAL_FOULS / GAMES_COUNT;
   const avgParking = TOTAL_IS_FULL_PARKING / GAMES_COUNT;
 
-  // 2. Calculate Grade using weights
+  // New averages
+  const avgOpenGate = (data.TOTAL_OPEN_GATE || 0) / GAMES_COUNT;
+  const avgIntakeUsed = (data.TOTAL_INTAKE_USED || 0) / GAMES_COUNT;
+  const avgShootingSmall = (data.TOTAL_SHOOTING_SMALL || 0) / GAMES_COUNT;
+  const avgShootingBig = (data.TOTAL_SHOOTING_BIG || 0) / GAMES_COUNT;
+  const avgCollectionHuman = (data.TOTAL_COLLECTION_HUMAN || 0) / GAMES_COUNT;
+  const avgCollectionFloor = (data.TOTAL_COLLECTION_FLOOR || 0) / GAMES_COUNT;
+  const avgDriverAwareness = (data.TOTAL_DRIVER_AWARENESS || 0) / GAMES_COUNT;
+  const avgDriverSuccess = (data.TOTAL_DRIVER_SUCCESS || 0) / GAMES_COUNT;
+  const avgDriverRebound = (data.TOTAL_DRIVER_REBOUND || 0) / GAMES_COUNT;
+  const avgDriverLate = (data.TOTAL_DRIVER_LATE || 0) / GAMES_COUNT;
+  const avgDriverFrozen = (data.TOTAL_DRIVER_FROZEN || 0) / GAMES_COUNT;
+  const avgDriverConfused = (data.TOTAL_DRIVER_CONFUSED || 0) / GAMES_COUNT;
+  const avgDriverStopped = (data.TOTAL_DRIVER_STOPPED || 0) / GAMES_COUNT;
+
+  const getWeight = (key: string) => weights[key] !== undefined ? weights[key] : (GRADING_WEIGHTS as any)[key];
+
+  // 2. Calculate Grade using weights (incorporating the new parameters)
   const grade = 
-    (avgAutoHit * (weights.POINTS_AUTO_HIT !== undefined ? weights.POINTS_AUTO_HIT : GRADING_WEIGHTS.POINTS_AUTO_HIT)) +
-    (avgTeleopHit * (weights.POINTS_TELEOP_HIT !== undefined ? weights.POINTS_TELEOP_HIT : GRADING_WEIGHTS.POINTS_TELEOP_HIT)) +
-    (avgAutoMiss * (weights.POINTS_AUTO_MISS !== undefined ? weights.POINTS_AUTO_MISS : GRADING_WEIGHTS.POINTS_AUTO_MISS)) +
-    (avgTeleopMiss * (weights.POINTS_TELEOP_MISS !== undefined ? weights.POINTS_TELEOP_MISS : GRADING_WEIGHTS.POINTS_TELEOP_MISS)) +
-    (avgFouls * (weights.POINTS_FAUL !== undefined ? weights.POINTS_FAUL : GRADING_WEIGHTS.POINTS_FAUL)) +
-    (avgParking * (weights.POINTS_PARKING !== undefined ? weights.POINTS_PARKING : GRADING_WEIGHTS.POINTS_PARKING));
+    (avgAutoHit * getWeight('POINTS_AUTO_HIT')) +
+    (avgTeleopHit * getWeight('POINTS_TELEOP_HIT')) +
+    (avgAutoMiss * getWeight('POINTS_AUTO_MISS')) +
+    (avgTeleopMiss * getWeight('POINTS_TELEOP_MISS')) +
+    (avgFouls * getWeight('POINTS_FAUL')) +
+    (avgParking * getWeight('POINTS_PARKING')) +
+    
+    (avgOpenGate * getWeight('POINTS_OPEN_GATE')) +
+    (avgIntakeUsed * getWeight('POINTS_INTAKE_USED')) +
+    (avgShootingSmall * getWeight('POINTS_SHOOTING_SMALL')) +
+    (avgShootingBig * getWeight('POINTS_SHOOTING_BIG')) +
+    (avgCollectionHuman * getWeight('POINTS_COLLECTION_HUMAN')) +
+    (avgCollectionFloor * getWeight('POINTS_COLLECTION_FLOOR')) +
+    (avgDriverAwareness * getWeight('POINTS_DRIVER_AWARENESS')) +
+    (avgDriverSuccess * getWeight('POINTS_DRIVER_SUCCESS')) +
+    (avgDriverRebound * getWeight('POINTS_DRIVER_REBOUND')) +
+    (avgDriverLate * getWeight('POINTS_DRIVER_LATE')) +
+    (avgDriverFrozen * getWeight('POINTS_DRIVER_FROZEN')) +
+    (avgDriverConfused * getWeight('POINTS_DRIVER_CONFUSED')) +
+    (avgDriverStopped * getWeight('POINTS_DRIVER_STOPPED'));
 
   // 3. Calculate Tie-Breaker (Ratio)
   const totalHits = TOTAL_TELEOP_HIT + TOTAL_AUTONOMUS_HIT;
@@ -91,3 +140,4 @@ export function calculateTeamGrade(data: TeamAggregatedData, weights = GRADING_W
     }
   };
 }
+

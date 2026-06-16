@@ -135,6 +135,21 @@ export interface TeamAggregatedData {
   GRADE: number;
   RATIO: number;
   RANK: number;
+
+  // New Aggregations
+  TOTAL_OPEN_GATE?: number;
+  TOTAL_INTAKE_USED?: number;
+  TOTAL_SHOOTING_SMALL?: number;
+  TOTAL_SHOOTING_BIG?: number;
+  TOTAL_COLLECTION_HUMAN?: number;
+  TOTAL_COLLECTION_FLOOR?: number;
+  TOTAL_DRIVER_AWARENESS?: number;
+  TOTAL_DRIVER_SUCCESS?: number;
+  TOTAL_DRIVER_REBOUND?: number;
+  TOTAL_DRIVER_LATE?: number;
+  TOTAL_DRIVER_FROZEN?: number;
+  TOTAL_DRIVER_CONFUSED?: number;
+  TOTAL_DRIVER_STOPPED?: number;
 }
 
 export interface TeamGradeResult {
@@ -147,14 +162,7 @@ export interface TeamGradeResult {
     avgTeleopMiss: number;
     avgFouls: number;
     avgParking: number;
-    weights: {
-      POINTS_AUTO_HIT: number;
-      POINTS_TELEOP_HIT: number;
-      POINTS_PARKING: number;
-      POINTS_AUTO_MISS: number;
-      POINTS_TELEOP_MISS: number;
-      POINTS_FAUL: number;
-    };
+    weights: Record<string, number>;
   };
 }
 
