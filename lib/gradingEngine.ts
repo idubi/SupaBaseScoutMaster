@@ -20,6 +20,7 @@ export const GRADING_WEIGHTS: Record<string, number> = {
   // NEW SC scouting fields added per user request
   POINTS_OPEN_GATE: 2,         // Weight for completing 'Open Gate' (autoOpenGate is true)
   POINTS_INTAKE_USED: 2,       // Weight for completing 'Intake Used' (autoIntakeUsed is true)
+  POINTS_AUTO_LEAVE: 2,        // Weight for leaving starting zone during auto (isAutoLeave is true)
   POINTS_SHOOTING_SMALL: 2,    // Weight for shooting to small zone (isTeleopZoneSmall is true)
   POINTS_SHOOTING_BIG: 2,      // Weight for shooting to big zone (isTeleopZoneBig is true)
   POINTS_COLLECTION_HUMAN: 2,  // Weight for human player collection (teleHumanPlayer is true)
@@ -86,6 +87,7 @@ export function calculateTeamGrade(data: TeamAggregatedData, weights = GRADING_W
 
   const avgOpenGate = (data.TOTAL_OPEN_GATE || 0) / GAMES_COUNT;
   const avgIntakeUsed = (data.TOTAL_INTAKE_USED || 0) / GAMES_COUNT;
+  const avgAutoLeave = (data.TOTAL_AUTO_LEAVE || 0) / GAMES_COUNT;
   const avgShootingSmall = (data.TOTAL_SHOOTING_SMALL || 0) / GAMES_COUNT;
   const avgShootingBig = (data.TOTAL_SHOOTING_BIG || 0) / GAMES_COUNT;
   const avgCollectionHuman = (data.TOTAL_COLLECTION_HUMAN || 0) / GAMES_COUNT;
@@ -116,6 +118,7 @@ export function calculateTeamGrade(data: TeamAggregatedData, weights = GRADING_W
     
     (avgOpenGate * getWeight('POINTS_OPEN_GATE')) +
     (avgIntakeUsed * getWeight('POINTS_INTAKE_USED')) +
+    (avgAutoLeave * getWeight('POINTS_AUTO_LEAVE')) +
     (avgShootingSmall * getWeight('POINTS_SHOOTING_SMALL')) +
     (avgShootingBig * getWeight('POINTS_SHOOTING_BIG')) +
     (avgCollectionHuman * getWeight('POINTS_COLLECTION_HUMAN')) +

@@ -30,7 +30,8 @@ import {
   UserPlus,
   ChevronDown,
   ChevronRight,
-  ShieldAlert
+  ShieldAlert,
+  Target
 } from 'lucide-react';
 import {ENV}  from "./constants";
 
@@ -118,6 +119,7 @@ const App: React.FC = () => {
     // New Weights
     POINTS_OPEN_GATE: 2,
     POINTS_INTAKE_USED: 2,
+    POINTS_AUTO_LEAVE: 2,
     POINTS_SHOOTING_SMALL: 2,
     POINTS_SHOOTING_BIG: 2,
     POINTS_COLLECTION_HUMAN: 2,
@@ -364,6 +366,7 @@ const App: React.FC = () => {
             POINTS_FOUL_INTAKE: Number(body.config.POINTS_FOUL_INTAKE ?? -2),
             POINTS_OPEN_GATE: Number(body.config.POINTS_OPEN_GATE ?? 2),
             POINTS_INTAKE_USED: Number(body.config.POINTS_INTAKE_USED ?? 2),
+            POINTS_AUTO_LEAVE: Number(body.config.POINTS_AUTO_LEAVE ?? 2),
             POINTS_SHOOTING_SMALL: Number(body.config.POINTS_SHOOTING_SMALL ?? 2),
             POINTS_SHOOTING_BIG: Number(body.config.POINTS_SHOOTING_BIG ?? 2),
             POINTS_COLLECTION_HUMAN: Number(body.config.POINTS_COLLECTION_HUMAN ?? 2),
@@ -1537,43 +1540,35 @@ const App: React.FC = () => {
                 {showWeightsHelp && (
                   <div className="bg-purple-50 border border-purple-150 p-4 rounded-2xl text-xs space-y-2 text-purple-950 animate-in fade-in duration-200 shrink-0 mb-4">
                     <p className="font-bold">
-                      {language === Language.HE ? 'נוסחת החישוב היסודית משלבת את כל הפרמטרים:' : 'The math encompasses all parameters:'}
-                    </p>
-                    <code className="block bg-white/60 p-2 rounded font-mono text-[9px] text-center overflow-x-auto">
-                      Grade = Sum(AvgMetric × Weight)
-                    </code>
-                    <p className="leading-relaxed text-[11px]">
                       {language === Language.HE 
-                        ? 'ציון הקבוצה הוא השקלול הכולל של כל הפרמטרים האוטונומיים, הטלאופ והנהיגה. ערכים חיוביים מעלים את הציון וקנסות מורידים אותו לגמרי.' 
-                        : 'Overall grade calculations encompass autonomous, teleop, collection, and driver behavior weights combined.'}
+                        ? 'נוסחת החישוב היסודית משלבת את כל המשתנים השונים לפי המשקלים שבחרתם.' 
+                        : 'The base calculation formula integrates all variables according to selected weights.'}
                     </p>
                   </div>
                 )}
 
-                {/* Grouped and Scrollable List of Sliders */}
-                <div className="flex-1 overflow-y-auto pr-3 space-y-4">
-
-                  {/* Section: Core Parameters */}
+                <div className="flex-1 overflow-y-auto pr-1 space-y-4">
+                  {/* Section: Autonomous Category */}
                   <div className="space-y-2">
                     <button
                       type="button"
-                      onClick={() => setActiveWeightsCategory(activeWeightsCategory === 'core' ? null : 'core')}
+                      onClick={() => setActiveWeightsCategory(activeWeightsCategory === 'auto' ? null : 'auto')}
                       className={`w-full flex items-center justify-between p-3.5 rounded-xl border transition-all select-none text-right ${
-                        activeWeightsCategory === 'core' 
+                        activeWeightsCategory === 'auto' 
                           ? 'bg-purple-50/70 border-purple-200 text-purple-900 shadow-xs' 
                           : 'bg-slate-50 border-slate-200/85 text-slate-700 hover:bg-slate-100/70'
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className={`p-1.5 rounded-lg ${activeWeightsCategory === 'core' ? 'bg-purple-100 text-purple-700' : 'bg-slate-200/60 text-slate-500'}`}>
+                        <div className={`p-1.5 rounded-lg ${activeWeightsCategory === 'auto' ? 'bg-purple-100 text-purple-700' : 'bg-slate-200/60 text-slate-500'}`}>
                           <Sliders size={14} />
                         </div>
                         <div className="text-right">
                           <h4 className="text-xs font-black uppercase tracking-tight">
-                            {language === Language.HE ? 'קליעות והחטאות' : 'Shoot Hit/Miss'}
+                            {language === Language.HE ? '1. אוטונומי (Auto)' : '1. Autonomous (Auto)'}
                           </h4>
                           <p className="text-[10px] text-slate-400 font-bold mt-0.5">
-                            {language === Language.HE ? '6 משתני פגיעות והחטאות' : '6 shooting accuracy variables'}
+                            {language === Language.HE ? '7 משתני ביצועים באוטונומי' : '7 autonomous performance variables'}
                           </p>
                         </div>
                       </div>
@@ -1581,18 +1576,75 @@ const App: React.FC = () => {
                         <ChevronRight 
                           size={15} 
                           className={`transition-all duration-300 ${
-                            activeWeightsCategory === 'core' ? 'rotate-90 text-purple-600' : 'text-slate-400'
+                            activeWeightsCategory === 'auto' ? 'rotate-90 text-purple-600' : 'text-slate-400'
                           }`} 
                         />
                       </div>
                     </button>
 
-                    {activeWeightsCategory === 'core' && (
+                    {activeWeightsCategory === 'auto' && (
                       <div className="p-4 bg-white border border-slate-100 rounded-xl space-y-4 shadow-inner-sm animate-in fade-in slide-in-from-top-1 duration-200">
-                        {/* Auto Hits */}
+                        {/* 1.1 Leave */}
                         <div className="space-y-1.5">
                           <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                            <span>{language === Language.HE ? 'פגיעות אוטונומי (POINTS_AUTO_HIT)' : 'Auto Hits Weight'}</span>
+                            <span>{language === Language.HE ? '1.1 עזיבת אזור (POINTS_AUTO_LEAVE)' : '1.1 Leave (POINTS_AUTO_LEAVE)'}</span>
+                            <input 
+                              type="number" min="-100" max="100" 
+                              value={sliderWeights.POINTS_AUTO_LEAVE}
+                              onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_AUTO_LEAVE: Number(e.target.value) })}
+                              className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                            />
+                          </div>
+                          <input 
+                            type="range" min="-100" max="100" dir="ltr"
+                            value={sliderWeights.POINTS_AUTO_LEAVE}
+                            onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_AUTO_LEAVE: Number(e.target.value) })}
+                            className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                          />
+                        </div>
+
+                        {/* 1.2 Intake */}
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                            <span>{language === Language.HE ? '1.2 ביצוע אינטייק (POINTS_INTAKE_USED)' : '1.2 Intake (POINTS_INTAKE_USED)'}</span>
+                            <input 
+                              type="number" min="-100" max="100" 
+                              value={sliderWeights.POINTS_INTAKE_USED}
+                              onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_INTAKE_USED: Number(e.target.value) })}
+                              className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                            />
+                          </div>
+                          <input 
+                            type="range" min="-100" max="100" dir="ltr"
+                            value={sliderWeights.POINTS_INTAKE_USED}
+                            onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_INTAKE_USED: Number(e.target.value) })}
+                            className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                          />
+                        </div>
+
+                        {/* 1.3 Open Gate */}
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                            <span>{language === Language.HE ? '1.3 פתיחת שער (POINTS_OPEN_GATE)' : '1.3 Open Gate (POINTS_OPEN_GATE)'}</span>
+                            <input 
+                              type="number" min="-100" max="100" 
+                              value={sliderWeights.POINTS_OPEN_GATE}
+                              onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_OPEN_GATE: Number(e.target.value) })}
+                              className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                            />
+                          </div>
+                          <input 
+                            type="range" min="-100" max="100" dir="ltr"
+                            value={sliderWeights.POINTS_OPEN_GATE}
+                            onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_OPEN_GATE: Number(e.target.value) })}
+                            className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                          />
+                        </div>
+
+                        {/* 1.4 Hit */}
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                            <span>{language === Language.HE ? '1.4 פגיעות (POINTS_AUTO_HIT)' : '1.4 Hit (POINTS_AUTO_HIT)'}</span>
                             <input 
                               type="number" min="-100" max="100" 
                               value={sliderWeights.POINTS_AUTO_HIT}
@@ -1608,29 +1660,10 @@ const App: React.FC = () => {
                           />
                         </div>
 
-                        {/* Tele Hits */}
+                        {/* 1.5 Miss */}
                         <div className="space-y-1.5">
                           <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                            <span>{language === Language.HE ? 'פגיעות טלאופ (POINTS_TELEOP_HIT)' : 'Teleop Hits Weight'}</span>
-                            <input 
-                              type="number" min="-100" max="100" 
-                              value={sliderWeights.POINTS_TELEOP_HIT}
-                              onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_TELEOP_HIT: Number(e.target.value) })}
-                              className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
-                            />
-                          </div>
-                          <input 
-                            type="range" min="-100" max="100" dir="ltr"
-                            value={sliderWeights.POINTS_TELEOP_HIT}
-                            onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_TELEOP_HIT: Number(e.target.value) })}
-                            className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                          />
-                        </div>
-
-                        {/* Auto Miss */}
-                        <div className="space-y-1.5">
-                          <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                            <span>{language === Language.HE ? 'החטאות אוטונומי (POINTS_AUTO_MISS)' : 'Auto Miss Weight'}</span>
+                            <span>{language === Language.HE ? '1.5 החטאות (POINTS_AUTO_MISS)' : '1.5 Miss (POINTS_AUTO_MISS)'}</span>
                             <input 
                               type="number" min="-100" max="100" 
                               value={sliderWeights.POINTS_AUTO_MISS}
@@ -1646,87 +1679,74 @@ const App: React.FC = () => {
                           />
                         </div>
 
-                        {/* Tele Miss */}
-                        <div className="space-y-1.5">
-                          <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                            <span>{language === Language.HE ? 'החטאות טלאופ (POINTS_TELEOP_MISS)' : 'Teleop Miss Weight'}</span>
-                            <input 
-                              type="number" min="-100" max="100" 
-                              value={sliderWeights.POINTS_TELEOP_MISS}
-                              onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_TELEOP_MISS: Number(e.target.value) })}
-                              className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
-                            />
+                        {/* Optional Zone Info kept is beautiful */}
+                        <div className="space-y-1.5 border-t border-dashed border-slate-150 pt-2.5">
+                          <label className="text-[10px] uppercase font-bold text-purple-600 select-none">קליעה באילוץ אזור / Zone-Restricted Hits</label>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Auto Small */}
+                            <div className="space-y-1">
+                              <div className="flex justify-between items-center text-[11px] font-bold text-slate-600">
+                                <span>אזור קטן / Small</span>
+                                <input 
+                                  type="number" min="-100" max="100" 
+                                  value={sliderWeights.POINTS_SHOOTING_SMALL}
+                                  onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_SHOOTING_SMALL: Number(e.target.value) })}
+                                  className="w-10 text-center py-0.5 border border-slate-300 rounded font-mono font-bold text-[10px]"
+                                />
+                              </div>
+                              <input 
+                                type="range" min="-100" max="100" dir="ltr"
+                                value={sliderWeights.POINTS_SHOOTING_SMALL}
+                                onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_SHOOTING_SMALL: Number(e.target.value) })}
+                                className="w-full h-1 bg-slate-100 rounded appearance-none cursor-pointer accent-purple-600"
+                              />
+                            </div>
+                            {/* Auto Big */}
+                            <div className="space-y-1">
+                              <div className="flex justify-between items-center text-[11px] font-bold text-slate-600">
+                                <span>אזור גדול / Big</span>
+                                <input 
+                                  type="number" min="-100" max="100" 
+                                  value={sliderWeights.POINTS_SHOOTING_BIG}
+                                  onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_SHOOTING_BIG: Number(e.target.value) })}
+                                  className="w-10 text-center py-0.5 border border-slate-300 rounded font-mono font-bold text-[10px]"
+                                />
+                              </div>
+                              <input 
+                                type="range" min="-100" max="100" dir="ltr"
+                                value={sliderWeights.POINTS_SHOOTING_BIG}
+                                onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_SHOOTING_BIG: Number(e.target.value) })}
+                                className="w-full h-1 bg-slate-100 rounded appearance-none cursor-pointer accent-purple-600"
+                              />
+                            </div>
                           </div>
-                          <input 
-                            type="range" min="-100" max="100" dir="ltr"
-                            value={sliderWeights.POINTS_TELEOP_MISS}
-                            onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_TELEOP_MISS: Number(e.target.value) })}
-                            className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                          />
                         </div>
 
-                        {/* Auto Small Zone Shooting */}
-                        <div className="space-y-1.5">
-                          <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                            <span>{language === Language.HE ? 'קליעה אוטונומית לאזור קטן (POINTS_SHOOTING_SMALL)' : 'Auto Small Zone Shooting'}</span>
-                            <input 
-                              type="number" min="-100" max="100" 
-                              value={sliderWeights.POINTS_SHOOTING_SMALL}
-                              onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_SHOOTING_SMALL: Number(e.target.value) })}
-                              className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
-                            />
-                          </div>
-                          <input 
-                            type="range" min="-100" max="100" dir="ltr"
-                            value={sliderWeights.POINTS_SHOOTING_SMALL}
-                            onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_SHOOTING_SMALL: Number(e.target.value) })}
-                            className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                          />
-                        </div>
-
-                        {/* Auto Big Zone Shooting */}
-                        <div className="space-y-1.5">
-                          <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                            <span>{language === Language.HE ? 'קליעה אוטונומית לאזור גדול (POINTS_SHOOTING_BIG)' : 'Auto Big Zone Shooting'}</span>
-                            <input 
-                              type="number" min="-100" max="100" 
-                              value={sliderWeights.POINTS_SHOOTING_BIG}
-                              onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_SHOOTING_BIG: Number(e.target.value) })}
-                              className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
-                            />
-                          </div>
-                          <input 
-                            type="range" min="-100" max="100" dir="ltr"
-                            value={sliderWeights.POINTS_SHOOTING_BIG}
-                            onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_SHOOTING_BIG: Number(e.target.value) })}
-                            className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                          />
-                        </div>
                       </div>
                     )}
                   </div>
 
-                  {/* Section: Collect Capabilities */}
+                  {/* Section: 2.1 Teleop Intake Category */}
                   <div className="space-y-2">
                     <button
                       type="button"
-                      onClick={() => setActiveWeightsCategory(activeWeightsCategory === 'teleop' ? null : 'teleop')}
+                      onClick={() => setActiveWeightsCategory(activeWeightsCategory === 'teleop_intake' ? null : 'teleop_intake')}
                       className={`w-full flex items-center justify-between p-3.5 rounded-xl border transition-all select-none text-right ${
-                        activeWeightsCategory === 'teleop' 
+                        activeWeightsCategory === 'teleop_intake' 
                           ? 'bg-purple-50/70 border-purple-200 text-purple-900 shadow-xs' 
                           : 'bg-slate-50 border-slate-200/85 text-slate-700 hover:bg-slate-100/70'
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className={`p-1.5 rounded-lg ${activeWeightsCategory === 'teleop' ? 'bg-purple-100 text-purple-700' : 'bg-slate-200/60 text-slate-500'}`}>
+                        <div className={`p-1.5 rounded-lg ${activeWeightsCategory === 'teleop_intake' ? 'bg-purple-100 text-purple-700' : 'bg-slate-200/60 text-slate-500'}`}>
                           <ClipboardList size={14} />
                         </div>
                         <div className="text-right">
                           <h4 className="text-xs font-black uppercase tracking-tight">
-                            {language === Language.HE ? 'יכולות איסוף' : 'Collect Capabilities'}
+                            {language === Language.HE ? '2.1 איסוף בטלאופ (Teleop Intake)' : '2.1 Teleop Intake'}
                           </h4>
                           <p className="text-[10px] text-slate-400 font-bold mt-0.5">
-                            {language === Language.HE ? '3 משתני יכולות איסוף' : '3 collection variables'}
+                            {language === Language.HE ? '2 משתני יכולות איסוף' : '2 collection variables'}
                           </p>
                         </div>
                       </div>
@@ -1734,37 +1754,18 @@ const App: React.FC = () => {
                         <ChevronRight 
                           size={15} 
                           className={`transition-all duration-300 ${
-                            activeWeightsCategory === 'teleop' ? 'rotate-90 text-purple-600' : 'text-slate-400'
+                            activeWeightsCategory === 'teleop_intake' ? 'rotate-90 text-purple-600' : 'text-slate-400'
                           }`} 
                         />
                       </div>
                     </button>
 
-                    {activeWeightsCategory === 'teleop' && (
+                    {activeWeightsCategory === 'teleop_intake' && (
                       <div className="p-4 bg-white border border-slate-100 rounded-xl space-y-4 shadow-inner-sm animate-in fade-in slide-in-from-top-1 duration-200">
-                        {/* Collection Human */}
+                        {/* 2.1.1 Floor Collection */}
                         <div className="space-y-1.5">
                           <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                            <span>{language === Language.HE ? 'איסוף שחקן אנושי (POINTS_COLLECTION_HUMAN)' : 'Human Player Collection'}</span>
-                            <input 
-                              type="number" min="-100" max="100" 
-                              value={sliderWeights.POINTS_COLLECTION_HUMAN}
-                              onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_COLLECTION_HUMAN: Number(e.target.value) })}
-                              className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
-                            />
-                          </div>
-                          <input 
-                            type="range" min="-100" max="100" dir="ltr"
-                            value={sliderWeights.POINTS_COLLECTION_HUMAN}
-                            onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_COLLECTION_HUMAN: Number(e.target.value) })}
-                            className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                          />
-                        </div>
-
-                        {/* Collection Floor */}
-                        <div className="space-y-1.5">
-                          <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                            <span>{language === Language.HE ? 'איסוף מהרצפה (POINTS_COLLECTION_FLOOR)' : 'Floor Collection Weight'}</span>
+                            <span>{language === Language.HE ? '2.1.1 איסוף מהרצפה (POINTS_COLLECTION_FLOOR)' : '2.1.1 Floor Intake (POINTS_COLLECTION_FLOOR)'}</span>
                             <input 
                               type="number" min="-100" max="100" 
                               value={sliderWeights.POINTS_COLLECTION_FLOOR}
@@ -1780,21 +1781,21 @@ const App: React.FC = () => {
                           />
                         </div>
 
-                        {/* Intake Used */}
+                        {/* 2.1.2 Human Player Collection */}
                         <div className="space-y-1.5">
                           <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                            <span>{language === Language.HE ? 'ביצוע אינטייק (POINTS_INTAKE_USED)' : 'Intake Used Weight'}</span>
+                            <span>{language === Language.HE ? '2.1.2 איסוף שחקן אנושי (POINTS_COLLECTION_HUMAN)' : '2.1.2 Human Intake (POINTS_COLLECTION_HUMAN)'}</span>
                             <input 
                               type="number" min="-100" max="100" 
-                              value={sliderWeights.POINTS_INTAKE_USED}
-                              onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_INTAKE_USED: Number(e.target.value) })}
+                              value={sliderWeights.POINTS_COLLECTION_HUMAN}
+                              onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_COLLECTION_HUMAN: Number(e.target.value) })}
                               className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
                             />
                           </div>
                           <input 
                             type="range" min="-100" max="100" dir="ltr"
-                            value={sliderWeights.POINTS_INTAKE_USED}
-                            onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_INTAKE_USED: Number(e.target.value) })}
+                            value={sliderWeights.POINTS_COLLECTION_HUMAN}
+                            onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_COLLECTION_HUMAN: Number(e.target.value) })}
                             className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
                           />
                         </div>
@@ -1802,7 +1803,84 @@ const App: React.FC = () => {
                     )}
                   </div>
 
-                  {/* Section: Driver Skill Traits */}
+                  {/* Section: 2.2 Teleop Shooting Category */}
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveWeightsCategory(activeWeightsCategory === 'teleop_shooting' ? null : 'teleop_shooting')}
+                      className={`w-full flex items-center justify-between p-3.5 rounded-xl border transition-all select-none text-right ${
+                        activeWeightsCategory === 'teleop_shooting' 
+                          ? 'bg-purple-50/70 border-purple-200 text-purple-900 shadow-xs' 
+                          : 'bg-slate-50 border-slate-200/85 text-slate-700 hover:bg-slate-100/70'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`p-1.5 rounded-lg ${activeWeightsCategory === 'teleop_shooting' ? 'bg-purple-100 text-purple-700' : 'bg-slate-200/60 text-slate-500'}`}>
+                          <Target size={14} />
+                        </div>
+                        <div className="text-right">
+                          <h4 className="text-xs font-black uppercase tracking-tight">
+                            {language === Language.HE ? '2.2 קליעה בטלאופ (Teleop Shooting)' : '2.2 Teleop Shooting'}
+                          </h4>
+                          <p className="text-[10px] text-slate-400 font-bold mt-0.5">
+                            {language === Language.HE ? '2 משתני פגיעה/החטאה בטלאופ' : '2 teleop shooting hits/misses'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <ChevronRight 
+                          size={15} 
+                          className={`transition-all duration-300 ${
+                            activeWeightsCategory === 'teleop_shooting' ? 'rotate-90 text-purple-600' : 'text-slate-400'
+                          }`} 
+                        />
+                      </div>
+                    </button>
+
+                    {activeWeightsCategory === 'teleop_shooting' && (
+                      <div className="p-4 bg-white border border-slate-100 rounded-xl space-y-4 shadow-inner-sm animate-in fade-in slide-in-from-top-1 duration-200">
+                        {/* 2.2.1 Teleop Hit */}
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                            <span>{language === Language.HE ? '2.2.1 פגיעות טלאופ (POINTS_TELEOP_HIT)' : '2.2.1 Tele Hit (POINTS_TELEOP_HIT)'}</span>
+                            <input 
+                              type="number" min="-100" max="100" 
+                              value={sliderWeights.POINTS_TELEOP_HIT}
+                              onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_TELEOP_HIT: Number(e.target.value) })}
+                              className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                            />
+                          </div>
+                          <input 
+                            type="range" min="-100" max="100" dir="ltr"
+                            value={sliderWeights.POINTS_TELEOP_HIT}
+                            onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_TELEOP_HIT: Number(e.target.value) })}
+                            className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                          />
+                        </div>
+
+                        {/* 2.2.2 Teleop Miss */}
+                        <div className="space-y-1.5">
+                          <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                            <span>{language === Language.HE ? '2.2.2 החטאות טלאופ (POINTS_TELEOP_MISS)' : '2.2.2 Tele Miss (POINTS_TELEOP_MISS)'}</span>
+                            <input 
+                              type="number" min="-100" max="100" 
+                              value={sliderWeights.POINTS_TELEOP_MISS}
+                              onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_TELEOP_MISS: Number(e.target.value) })}
+                              className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
+                            />
+                          </div>
+                          <input 
+                            type="range" min="-100" max="100" dir="ltr"
+                            value={sliderWeights.POINTS_TELEOP_MISS}
+                            onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_TELEOP_MISS: Number(e.target.value) })}
+                            className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Section: 2.3 Driver Skills Category */}
                   <div className="space-y-2">
                     <button
                       type="button"
@@ -1819,10 +1897,10 @@ const App: React.FC = () => {
                         </div>
                         <div className="text-right">
                           <h4 className="text-xs font-black uppercase tracking-tight">
-                            {language === Language.HE ? 'מיומנות ותכונות נהג' : 'Driver Skill Trait Weights'}
+                            {language === Language.HE ? '2.3 מיומנות נהג וחנייה (Driver Skills)' : '2.3 Driver Skills & Parking'}
                           </h4>
                           <p className="text-[10px] text-slate-400 font-bold mt-0.5">
-                            {language === Language.HE ? '9 משתני ביצועי נהיגה וכלי' : '9 driving/robot performance variables'}
+                            {language === Language.HE ? '9 משתני ביצועי נהיגה וחנייה' : '9 driving & parking variables'}
                           </p>
                         </div>
                       </div>
@@ -1835,13 +1913,13 @@ const App: React.FC = () => {
                         />
                       </div>
                     </button>
- 
+
                     {activeWeightsCategory === 'driver' && (
                       <div className="p-4 bg-white border border-slate-100 rounded-xl space-y-4 shadow-inner-sm animate-in fade-in slide-in-from-top-1 duration-200">
                         {/* Parking */}
                         <div className="space-y-1.5">
                           <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                            <span>{language === Language.HE ? 'חנייה (POINTS_PARKING)' : 'Parking Weight'}</span>
+                            <span>{language === Language.HE ? 'חנייה (POINTS_PARKING)' : 'Parking Weight (POINTS_PARKING)'}</span>
                             <input 
                               type="number" min="-100" max="100" 
                               value={sliderWeights.POINTS_PARKING}
@@ -1857,29 +1935,10 @@ const App: React.FC = () => {
                           />
                         </div>
 
-                        {/* Open Gate */}
-                        <div className="space-y-1.5">
-                          <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                            <span>{language === Language.HE ? 'פתיחת שער (POINTS_OPEN_GATE)' : 'Open Gate Weight'}</span>
-                            <input 
-                              type="number" min="-100" max="100" 
-                              value={sliderWeights.POINTS_OPEN_GATE}
-                              onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_OPEN_GATE: Number(e.target.value) })}
-                              className="w-14 text-center px-1 py-0.5 border-2 border-slate-300 rounded-md font-mono font-bold text-xs"
-                            />
-                          </div>
-                          <input 
-                            type="range" min="-100" max="100" dir="ltr"
-                            value={sliderWeights.POINTS_OPEN_GATE}
-                            onChange={(e) => setSliderWeights({ ...sliderWeights, POINTS_OPEN_GATE: Number(e.target.value) })}
-                            className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-purple-600"
-                          />
-                        </div>
-
                         {/* Driver Awareness */}
                         <div className="space-y-1.5">
                           <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                            <span>{language === Language.HE ? 'מודעות שטח (POINTS_DRIVER_AWARENESS)' : 'Field Awareness Weight'}</span>
+                            <span>{language === Language.HE ? 'מודעות שטח (POINTS_DRIVER_AWARENESS)' : 'Field Awareness (POINTS_DRIVER_AWARENESS)'}</span>
                             <input 
                               type="number" min="-100" max="100" 
                               value={sliderWeights.POINTS_DRIVER_AWARENESS}
@@ -1898,7 +1957,7 @@ const App: React.FC = () => {
                         {/* Driver Success */}
                         <div className="space-y-1.5">
                           <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                            <span>{language === Language.HE ? 'הצלחה כללית (POINTS_DRIVER_SUCCESS)' : 'Overall Success Weight'}</span>
+                            <span>{language === Language.HE ? 'הצלחה כללית (POINTS_DRIVER_SUCCESS)' : 'Overall Success (POINTS_DRIVER_SUCCESS)'}</span>
                             <input 
                               type="number" min="-100" max="100" 
                               value={sliderWeights.POINTS_DRIVER_SUCCESS}
@@ -1917,7 +1976,7 @@ const App: React.FC = () => {
                         {/* Driver Rebound */}
                         <div className="space-y-1.5">
                           <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                            <span>{language === Language.HE ? 'כדור חוזר מהיר (POINTS_DRIVER_REBOUND)' : 'Fast Rebound Weight'}</span>
+                            <span>{language === Language.HE ? 'כדור חוזר מהיר (POINTS_DRIVER_REBOUND)' : 'Fast Rebound (POINTS_DRIVER_REBOUND)'}</span>
                             <input 
                               type="number" min="-100" max="100" 
                               value={sliderWeights.POINTS_DRIVER_REBOUND}
@@ -1936,7 +1995,7 @@ const App: React.FC = () => {
                         {/* Driver Late */}
                         <div className="space-y-1.5">
                           <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                            <span>{language === Language.HE ? 'תרגום מאוחר (POINTS_DRIVER_LATE)' : 'Late Translation Penalty'}</span>
+                            <span>{language === Language.HE ? 'תרגום מאוחר (POINTS_DRIVER_LATE)' : 'Late Translation (POINTS_DRIVER_LATE)'}</span>
                             <input 
                               type="number" min="-100" max="100" 
                               value={sliderWeights.POINTS_DRIVER_LATE}
@@ -1955,7 +2014,7 @@ const App: React.FC = () => {
                         {/* Driver Frozen */}
                         <div className="space-y-1.5">
                           <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                            <span>{language === Language.HE ? 'רובוט קפוא (POINTS_DRIVER_FROZEN)' : 'Robot Frozen Penalty'}</span>
+                            <span>{language === Language.HE ? 'רובוט קפוא (POINTS_DRIVER_FROZEN)' : 'Robot Frozen (POINTS_DRIVER_FROZEN)'}</span>
                             <input 
                               type="number" min="-100" max="100" 
                               value={sliderWeights.POINTS_DRIVER_FROZEN}
@@ -1974,7 +2033,7 @@ const App: React.FC = () => {
                         {/* Driver Confused */}
                         <div className="space-y-1.5">
                           <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                            <span>{language === Language.HE ? 'נהג מבולבל (POINTS_DRIVER_CONFUSED)' : 'Driver Confused Penalty'}</span>
+                            <span>{language === Language.HE ? 'נהג מבולבל (POINTS_DRIVER_CONFUSED)' : 'Driver Confused (POINTS_DRIVER_CONFUSED)'}</span>
                             <input 
                               type="number" min="-100" max="100" 
                               value={sliderWeights.POINTS_DRIVER_CONFUSED}
@@ -1993,7 +2052,7 @@ const App: React.FC = () => {
                         {/* Driver Stopped */}
                         <div className="space-y-1.5">
                           <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                            <span>{language === Language.HE ? 'הפסקת ניקוד (POINTS_DRIVER_STOPPED)' : 'Stopped Scoring Penalty'}</span>
+                            <span>{language === Language.HE ? 'הפסקת ניקוד (POINTS_DRIVER_STOPPED)' : 'Stopped Scoring (POINTS_DRIVER_STOPPED)'}</span>
                             <input 
                               type="number" min="-100" max="100" 
                               value={sliderWeights.POINTS_DRIVER_STOPPED}

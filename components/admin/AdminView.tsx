@@ -137,7 +137,21 @@ const AdminView: React.FC<AdminViewProps> = ({
     POINTS_FAUL: 0,
     POINTS_FOUL_GATE: -2,
     POINTS_FOUL_PARKING: -2,
-    POINTS_FOUL_INTAKE: -2
+    POINTS_FOUL_INTAKE: -2,
+    POINTS_OPEN_GATE: 2,
+    POINTS_INTAKE_USED: 2,
+    POINTS_AUTO_LEAVE: 2,
+    POINTS_SHOOTING_SMALL: 2,
+    POINTS_SHOOTING_BIG: 2,
+    POINTS_COLLECTION_HUMAN: 2,
+    POINTS_COLLECTION_FLOOR: 2,
+    POINTS_DRIVER_AWARENESS: 3,
+    POINTS_DRIVER_SUCCESS: 3,
+    POINTS_DRIVER_REBOUND: 2,
+    POINTS_DRIVER_LATE: -1,
+    POINTS_DRIVER_FROZEN: -3,
+    POINTS_DRIVER_CONFUSED: -2,
+    POINTS_DRIVER_STOPPED: -3
   });
   const [sliderWeights, setSliderWeights] = useState({
     POINTS_AUTO_HIT: 7,
@@ -148,7 +162,21 @@ const AdminView: React.FC<AdminViewProps> = ({
     POINTS_FAUL: 0,
     POINTS_FOUL_GATE: -2,
     POINTS_FOUL_PARKING: -2,
-    POINTS_FOUL_INTAKE: -2
+    POINTS_FOUL_INTAKE: -2,
+    POINTS_OPEN_GATE: 2,
+    POINTS_INTAKE_USED: 2,
+    POINTS_AUTO_LEAVE: 2,
+    POINTS_SHOOTING_SMALL: 2,
+    POINTS_SHOOTING_BIG: 2,
+    POINTS_COLLECTION_HUMAN: 2,
+    POINTS_COLLECTION_FLOOR: 2,
+    POINTS_DRIVER_AWARENESS: 3,
+    POINTS_DRIVER_SUCCESS: 3,
+    POINTS_DRIVER_REBOUND: 2,
+    POINTS_DRIVER_LATE: -1,
+    POINTS_DRIVER_FROZEN: -3,
+    POINTS_DRIVER_CONFUSED: -2,
+    POINTS_DRIVER_STOPPED: -3
   });
   const [showHelp, setShowHelp] = useState(false);
   const [isSavingWeights, setIsSavingWeights] = useState(false);
@@ -170,7 +198,21 @@ const AdminView: React.FC<AdminViewProps> = ({
             POINTS_FAUL: Number(body.config.POINTS_FAUL ?? 0),
             POINTS_FOUL_GATE: Number(body.config.POINTS_FOUL_GATE ?? -2),
             POINTS_FOUL_PARKING: Number(body.config.POINTS_FOUL_PARKING ?? -2),
-            POINTS_FOUL_INTAKE: Number(body.config.POINTS_FOUL_INTAKE ?? -2)
+            POINTS_FOUL_INTAKE: Number(body.config.POINTS_FOUL_INTAKE ?? -2),
+            POINTS_OPEN_GATE: Number(body.config.POINTS_OPEN_GATE ?? 2),
+            POINTS_INTAKE_USED: Number(body.config.POINTS_INTAKE_USED ?? 2),
+            POINTS_AUTO_LEAVE: Number(body.config.POINTS_AUTO_LEAVE ?? 2),
+            POINTS_SHOOTING_SMALL: Number(body.config.POINTS_SHOOTING_SMALL ?? 2),
+            POINTS_SHOOTING_BIG: Number(body.config.POINTS_SHOOTING_BIG ?? 2),
+            POINTS_COLLECTION_HUMAN: Number(body.config.POINTS_COLLECTION_HUMAN ?? 2),
+            POINTS_COLLECTION_FLOOR: Number(body.config.POINTS_COLLECTION_FLOOR ?? 2),
+            POINTS_DRIVER_AWARENESS: Number(body.config.POINTS_DRIVER_AWARENESS ?? 3),
+            POINTS_DRIVER_SUCCESS: Number(body.config.POINTS_DRIVER_SUCCESS ?? 3),
+            POINTS_DRIVER_REBOUND: Number(body.config.POINTS_DRIVER_REBOUND ?? 2),
+            POINTS_DRIVER_LATE: Number(body.config.POINTS_DRIVER_LATE ?? -1),
+            POINTS_DRIVER_FROZEN: Number(body.config.POINTS_DRIVER_FROZEN ?? -3),
+            POINTS_DRIVER_CONFUSED: Number(body.config.POINTS_DRIVER_CONFUSED ?? -2),
+            POINTS_DRIVER_STOPPED: Number(body.config.POINTS_DRIVER_STOPPED ?? -3)
           };
           setDbWeights(w);
           setSliderWeights(w);
